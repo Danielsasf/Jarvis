@@ -15,6 +15,7 @@ const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
 const calLib = require('./calendar');
 const gcalLib = require('./gcal');
+const notifyLib = require('./notify');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -87,6 +88,10 @@ function normalize(c) {
   accountsLib.migrate(c);
   c.remote = { enabled: false, port: 8484, devices: [], ...(c.remote || {}) };
   if (!Array.isArray(c.remote.devices)) c.remote.devices = [];
+  c.notify = { enabled: false, server: 'https://ntfy.sh', topic: '', private: true, quiet: { on: true, start: '22:00', end: '07:00' }, events: true, lead: 15,
+    mailMode: 'rules', vips: '', keywords: notifyLib.DEFAULT_KEYWORDS, morning: true, morningTime: '07:30', state: {}, log: [], ...(c.notify || {}) };
+  c.notify.quiet = { on: true, start: '22:00', end: '07:00', ...(c.notify.quiet || {}) };
+  if (!c.notify.topic) c.notify.topic = notifyLib.newTopic();
   c.gcal = { clientId: '', clientSecret: '', refresh: '', ...(c.gcal || {}) };
   c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
@@ -128,6 +133,9 @@ function publicState() {
       beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), instructions: p.instructions })),
     memory: memory.list(),
     remote: remoteInfo(),
+    notify: { enabled: cfg.notify.enabled, server: cfg.notify.server, topic: cfg.notify.topic, private: cfg.notify.private, quiet: cfg.notify.quiet, events: cfg.notify.events, lead: cfg.notify.lead,
+      mailMode: cfg.notify.mailMode, vips: cfg.notify.vips, keywords: cfg.notify.keywords, morning: cfg.notify.morning, morningTime: cfg.notify.morningTime, log: cfg.notify.log || [],
+      phoneLink: (remote?.status().running && remote.status().url) || '' },
     gcal: { clientId: cfg.gcal.clientId, hasSecret: !!cfg.gcal.clientSecret, connected: !!cfg.gcal.refresh },
     cal: { enabled: cfg.cal.enabled, hasUrl: !!cfg.cal.url, days: cfg.cal.days },
     mail: { enabled: cfg.mail.enabled, preset: cfg.mail.preset, host: cfg.mail.host, port: cfg.mail.port, user: cfg.mail.user, hasPass: !!cfg.mail.pass, days: cfg.mail.days },
@@ -422,6 +430,58 @@ ipcMain.handle('mail:test', async () => {
   return { total: list.length, unseen: list.filter((x) => x.unseen).length };
 });
 
+// ---------- Benachrichtigungen aufs Handy (ntfy) ----------
+const phoneUrl = () => { const st = remote?.status(); return st?.running ? st.url + '/' : null; };
+const pushNow = (msg) => notifyLib.ntfySend({ server: cfg.notify.server, topic: cfg.notify.topic, ...msg });
+let notifier = null; let lastMailCheck = 0;
+function getNotifier() {
+  if (notifier) return notifier;
+  notifier = new notifyLib.Notifier({
+    cfg: () => cfg.notify, save: saveCfg, send: pushNow, phoneUrl, log,
+    getEvents: async (from, to) => {
+      if (!cfg.cal.enabled) return null; // Kalender nicht eingerichtet
+      const gc = getGcal();
+      if (gc) return gc.listEvents(from, to);
+      return cfg.cal.url ? calLib.fetchEvents(decrypt(cfg.cal.url), from, to) : null;
+    },
+    getMails: async () => (cfg.mail.enabled && cfg.mail.pass ? mailLib.fetchRecent(mailCreds(), { days: 2, max: 30, unseenOnly: true, bodyChars: 300 }) : null),
+  });
+  return notifier;
+}
+async function notifyTick() {
+  if (!cfg.notify.enabled) return;
+  const due = Date.now() - lastMailCheck >= 5 * 60000;
+  if (due) lastMailCheck = Date.now();
+  try { await getNotifier().tick({ mailDue: due }); } catch (err) { log(`Benachrichtigung fehlgeschlagen: ${String(err.message).slice(0, 100)}`); }
+}
+ipcMain.handle('notify:set', (_e, p = {}) => {
+  const n = cfg.notify;
+  if (typeof p.enabled === 'boolean') { n.enabled = p.enabled; if (p.enabled) { lastMailCheck = 0; } }
+  if (typeof p.server === 'string') n.server = notifyLib.checkServer(p.server);
+  for (const k of ['private', 'events', 'morning']) if (typeof p[k] === 'boolean') n[k] = p[k];
+  if (typeof p.quietOn === 'boolean') n.quiet.on = p.quietOn;
+  for (const [k, key] of [['quietStart', 'start'], ['quietEnd', 'end']]) if (/^\d{1,2}:\d{2}$/.test(p[k] || '')) n.quiet[key] = p[k];
+  if (/^\d{1,2}:\d{2}$/.test(p.morningTime || '')) n.morningTime = p.morningTime;
+  if (Number.isInteger(p.lead)) n.lead = Math.min(120, Math.max(1, p.lead));
+  if (['off', 'rules', 'all'].includes(p.mailMode)) n.mailMode = p.mailMode;
+  if (typeof p.vips === 'string') n.vips = p.vips.slice(0, 2000);
+  if (typeof p.keywords === 'string') n.keywords = p.keywords.slice(0, 2000);
+  if (p.newTopic) { n.topic = notifyLib.newTopic(); n.state = {}; }
+  saveCfg();
+  return publicState();
+});
+ipcMain.handle('notify:test', async () => {
+  await pushNow({ title: 'Jarvis', message: 'Test: So meldet sich Jarvis bei dir. Tippe, um den Chat zu öffnen.', priority: 3, tags: 'robot', click: phoneUrl() || undefined });
+  return true;
+});
+ipcMain.handle('notify:morning', async () => {
+  const nt = getNotifier();
+  const unseen = cfg.notify.mailMode !== 'off' ? await nt.getMails().catch(() => null) : null;
+  const ok = await nt.briefing(unseen);
+  saveCfg();
+  return ok;
+});
+
 // ---------- Google Kalender: Anmeldung, Vorschläge bestätigen ----------
 let gcalInst = null;
 function getGcal() {
@@ -606,6 +666,7 @@ function createWindow() {
       if (cfg.settings.autoUpdate) checkUpdate(false);
       if (cfg.settings.wakeWord) wake.set(true, cfg.settings.wakeSens);
       remoteApply().catch(() => {});
+      setTimeout(notifyTick, 20000); setInterval(notifyTick, 60000);
       setInterval(() => { if (cfg.remote.enabled && !remote.status().running) remoteApply().catch(() => {}); }, 30000); // Tailscale später gestartet?
     }, 1500);
   });

@@ -97,6 +97,7 @@
         <button data-tab="handy"><span>07</span>Handy</button>
         <button data-tab="mail"><span>08</span>E-Mail</button>
         <button data-tab="kalender"><span>09</span>Kalender</button>
+        <button data-tab="melden"><span>10</span>Benachrichtigungen</button>
       </nav>
       <div class="settings-main">
         <button class="top-btn close" id="closeSettings" title="Schließen (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -201,6 +202,33 @@
           </div>
           <h3>Protokoll</h3>
           <pre id="log" class="log"></pre>
+        </section>
+
+        <section data-pane="melden" class="hidden">
+          <h2>Benachrichtigungen</h2>
+          <p class="muted">Jarvis meldet sich auf deinem Handy, wenn etwas Wichtiges passiert: ein Termin steht an, eine dringende Mail kommt, und jeden Morgen gibt es einen kurzen Überblick. Ein Antippen öffnet den Jarvis-Chat am Handy (dafür muss der Handy-Zugang laufen). Die Regeln laufen auf deinem PC – Jarvis muss dafür offen sein. Es kostet nichts.</p>
+          <div class="setting"><div><b>Benachrichtigungen</b><small>Aus, bis du es einschaltest.</small></div><label class="switch"><input type="checkbox" id="nToggle"><span></span></label></div>
+          <h3>Handy einrichten (einmalig)</h3>
+          <ol class="muted steps-list">
+            <li>Installiere die kostenlose App <b>ntfy</b> (Google Play oder App Store) auf deinem Handy.</li>
+            <li>In der App auf „+“ tippen, den Server <b>ntfy.sh</b> lassen und dieses Thema eintragen: <code id="nTopic"></code></li>
+            <li>Hier auf „Test senden“ klicken. Kommt die Meldung an, ist alles bereit.</li>
+          </ol>
+          <p class="muted">Das Thema ist wie ein Passwort: Wer es kennt, könnte mitlesen oder dir Meldungen schicken. Gib es nicht weiter. Mit „Neues Thema“ tauschst du es aus (dann am Handy neu abonnieren).</p>
+          <div class="row"><button class="primary" id="nTest">Test senden</button><button class="ghost" id="nMorningNow">Morgen-Überblick jetzt senden</button><button class="ghost" id="nNewTopic">Neues Thema</button></div>
+          <p class="wake-status" id="nStatus"></p>
+          <h3>Was gemeldet wird</h3>
+          <div class="setting"><div><b>Datenschutz-Modus</b><small>Ein: Die Meldung sagt nur „Wichtige Mail“ oder „Termin in 10 Min“, ohne Absender, Betreff oder Titel. Aus: Absender, Betreff und Titel stehen in der Meldung und laufen über den Push-Server (ntfy.sh).</small></div><label class="switch"><input type="checkbox" id="nPrivate"><span></span></label></div>
+          <div class="setting"><div><b>Termin-Erinnerung</b><small>Braucht den Kalender-Zugang (Tab Kalender).</small></div><div class="row"><select id="nLead"><option value="5">5 Min vorher</option><option value="10">10 Min vorher</option><option value="15">15 Min vorher</option><option value="30">30 Min vorher</option><option value="60">60 Min vorher</option></select><label class="switch"><input type="checkbox" id="nEvents"><span></span></label></div></div>
+          <div class="setting"><div><b>E-Mails</b><small>Braucht den E-Mail-Zugang (Tab E-Mail). Geprüft wird alle 5 Minuten lokal nach deinen Regeln. Mail-Inhalte gehen dafür nicht an eine KI. „Wichtig“: Absender oder Stichwörter unten. Die erste Prüfung meldet nichts, damit alte Mails dich nicht fluten.</small></div>
+            <select id="nMailMode"><option value="off">nicht melden</option><option value="rules">nur Wichtige</option><option value="all">alle neuen Mails</option></select></div>
+          <div class="setting"><div><b>Wichtige Absender</b><small>Teile des Namens oder der Adresse, mit Komma getrennt (z. B. „mama@, schule.de“).</small></div><textarea id="nVips" rows="2"></textarea></div>
+          <div class="setting"><div><b>Stichwörter</b><small>Kommt eines in Betreff oder Anfang der Mail vor, gilt sie als wichtig (laute Meldung).</small></div><textarea id="nKeywords" rows="3"></textarea></div>
+          <div class="setting"><div><b>Morgen-Überblick</b><small>Einmal am Tag: Zahl der Termine und ungelesenen Mails. Tippen öffnet den Handy-Chat, der dir alles zusammenfasst. Kommt auch in der Ruhezeit.</small></div><div class="row"><input type="time" id="nMorningTime"><label class="switch"><input type="checkbox" id="nMorning"><span></span></label></div></div>
+          <div class="setting"><div><b>Ruhezeit</b><small>In dieser Zeit sendet Jarvis keine Termin- und Mail-Meldungen. Was nachts eintrifft, wird nicht nachgemeldet.</small></div><div class="row"><input type="time" id="nQuietStart"><span class="muted">bis</span><input type="time" id="nQuietEnd"><label class="switch"><input type="checkbox" id="nQuietOn"><span></span></label></div></div>
+          <div class="row end"><button class="primary" id="nSave">Speichern</button></div>
+          <h3>Zuletzt gesendet</h3>
+          <ul class="mem-list" id="nLog"></ul>
         </section>
 
         <section data-pane="kalender" class="hidden">

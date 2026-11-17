@@ -81,3 +81,12 @@ Danach z. B.: "Trag morgen um 15 Uhr Zahnarzt ein" oder "Verschiebe Mathe auf 10
 Jarvis schlägt nur vor: im Chat erscheint eine Karte. Erst nach Klick auf "Eintragen"/"Verschieben" wird der Kalender geändert.
 Nichts wird gelöscht. Nur der Haupt-Kalender. Am Handy-Chat werden keine Termine eingetragen (nur am PC bestätigen).
 Wichtig: Beim Google-Zustimmungsbildschirm den Status auf "In Produktion" setzen, sonst läuft die Verbindung nach 7 Tagen ab.
+
+BENACHRICHTIGUNGEN AUFS HANDY (ab 2.10.0)
+-----------------------------------------
+Einstellungen > Benachrichtigungen: ntfy-App (kostenlos) aufs Handy, Thema abonnieren (steht dort), "Test senden", einschalten.
+Gemeldet wird: Termin in X Minuten, wichtige Mails (Absender/Stichwörter, laute Meldung), jeden Morgen ein Überblick.
+Antippen öffnet den Handy-Chat (Handy-Zugang muss laufen); der Morgen-Überblick fasst dann alles zusammen.
+Datenschutz-Modus (Standard an): Meldungen enthalten keine Absender/Betreffe/Titel. Ruhezeit Standard 22-7 Uhr.
+Die Regeln laufen lokal auf dem PC (Jarvis muss offen sein). Mail-Inhalte gehen dafür an keine KI.
+Das Thema ist wie ein Passwort, nicht weitergeben.

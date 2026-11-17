@@ -67,5 +67,5 @@ if(SR&&window.isSecureContext){$('mic').classList.remove('hid');
  $('mic').onclick=()=>{if(talking){talking=false;try{rec.stop()}catch{};if(syn)syn.cancel();$('mic').classList.remove('on');return}talking=true;if(syn)syn.cancel();listen()}}
 else if(token!==undefined){hint(SR?'Tipp: Für das Mikrofon-Symbol braucht der Browser https. Bis dahin: Mikrofon-Taste auf deiner Handy-Tastatur zum Diktieren nutzen.':'Tipp: Zum Sprechen die Mikrofon-Taste deiner Handy-Tastatur nutzen.')}
 const _show=show;show=function(a){_show(a);if(!a)$('hint').classList.add('hid')};
-if(token)loadChats().catch(()=>show(false));else show(false);
+if(token)loadChats().then(()=>{if(location.hash==='#briefing'&&token){history.replaceState(null,'',location.pathname);$('inp').value='Gib mir meinen Morgen-Überblick: meine Termine heute und die wichtigen neuen E-Mails.';$('form').requestSubmit()}}).catch(()=>show(false));else show(false);
 </script></body></html>

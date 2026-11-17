@@ -688,6 +688,38 @@ $('importPack').onclick = async () => {
 $('packFolder').onclick = () => jarvis.openPackFolder();
 
 const MAIL_PRESETS = { webde: ['imap.web.de', 993], gmx: ['imap.gmx.net', 993], gmail: ['imap.gmail.com', 993], outlook: ['outlook.office365.com', 993], icloud: ['imap.mail.me.com', 993] };
+function renderNotify() {
+  const n = state.notify || {};
+  $('nToggle').checked = !!n.enabled;
+  $('nTopic').textContent = n.topic || '';
+  if (!document.querySelector('[data-pane="melden"]').contains(document.activeElement) || document.activeElement.type === 'checkbox') {
+    $('nPrivate').checked = !!n.private; $('nEvents').checked = !!n.events; $('nMorning').checked = !!n.morning; $('nQuietOn').checked = !!n.quiet?.on;
+    $('nLead').value = String(n.lead || 15); $('nMailMode').value = n.mailMode || 'rules';
+    $('nVips').value = n.vips || ''; $('nKeywords').value = n.keywords || '';
+    $('nMorningTime').value = n.morningTime || '07:30'; $('nQuietStart').value = n.quiet?.start || '22:00'; $('nQuietEnd').value = n.quiet?.end || '07:00';
+  }
+  $('nLog').innerHTML = (n.log || []).length ? '' : '<li class="muted">Noch nichts gesendet.</li>';
+  for (const l of n.log || []) { const li = document.createElement('li'); li.innerHTML = `<span>${escapeHtml(l.title)}</span><small>${new Date(l.t).toLocaleString('de-DE')}</small>`; $('nLog').appendChild(li); }
+}
+const nMsg = (t, cls) => { const st = $('nStatus'); st.className = 'wake-status' + (cls ? ' ' + cls : ''); st.textContent = t; };
+const nErr = (err) => String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+$('nToggle').onchange = async (e) => {
+  try { state = await jarvis.setNotify({ enabled: e.target.checked }); if (e.target.checked && !state.notify.phoneLink) nMsg('Eingeschaltet. Hinweis: Der Handy-Zugang läuft nicht, ein Antippen kann den Chat dann nicht öffnen (Tab Handy).', 'err'); } catch (err) { nMsg(nErr(err), 'err'); }
+  renderAll();
+};
+$('nSave').onclick = async () => {
+  try {
+    state = await jarvis.setNotify({ private: $('nPrivate').checked, events: $('nEvents').checked, morning: $('nMorning').checked, quietOn: $('nQuietOn').checked, lead: parseInt($('nLead').value, 10), mailMode: $('nMailMode').value,
+      vips: $('nVips').value, keywords: $('nKeywords').value, morningTime: $('nMorningTime').value, quietStart: $('nQuietStart').value, quietEnd: $('nQuietEnd').value });
+    nMsg('Gespeichert.', 'ok');
+  } catch (err) { nMsg(nErr(err), 'err'); }
+  renderAll();
+};
+$('nTest').onclick = async () => { nMsg('Sende …'); try { await jarvis.testNotify(); nMsg('Gesendet. Schau auf dein Handy. Kommt nichts an: ntfy-App geöffnet und das Thema oben abonniert?', 'ok'); } catch (err) { nMsg(nErr(err), 'err'); } };
+$('nMorningNow').onclick = async () => { nMsg('Sende …'); try { const ok = await jarvis.morningNotify(); nMsg(ok ? 'Morgen-Überblick gesendet.' : 'Nicht gesendet (Limit erreicht).', ok ? 'ok' : 'err'); state = await jarvis.getState(); renderAll(); } catch (err) { nMsg(nErr(err), 'err'); } };
+$('nNewTopic').onclick = async () => { if (confirm('Neues Thema erzeugen? Du musst es danach am Handy in der ntfy-App neu abonnieren.')) { state = await jarvis.setNotify({ newTopic: true }); nMsg('Neues Thema erzeugt. Am Handy neu abonnieren.', 'ok'); renderAll(); } };
+setInterval(async () => { if ($('settings').classList.contains('open')) { try { const st = await jarvis.getState(); state.notify = st.notify; renderNotify(); } catch { /* egal */ } } }, 5000);
+
 function renderGcal() {
   const g = state.gcal || {};
   if (!['gClientId', 'gSecret'].includes(document.activeElement?.id)) { $('gClientId').value = g.clientId || ''; }
@@ -889,6 +921,7 @@ function renderAll() {
   renderMail();
   renderCal();
   renderGcal();
+  renderNotify();
   els.speakToggle.classList.toggle('off', !state.settings.speak);
   els.speakToggle.title = state.settings.speak ? 'Vorlesen: an' : 'Vorlesen: aus';
   updateReadouts();
