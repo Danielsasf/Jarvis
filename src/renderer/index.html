@@ -214,6 +214,7 @@
             <li>Installiere <b>Tailscale</b> (kostenlos) auf PC und Handy: <code>tailscale.com/download</code>. Melde dich auf beiden mit demselben Konto an.</li>
             <li>Schalte oben den Handy-Zugang ein. Unten erscheint die Adresse für dein Handy.</li>
             <li>Öffne die Adresse im Handy-Browser, erzeuge hier einen Kopplungscode und tippe ihn am Handy ein.</li>
+            <li><b>Sprechen am Handy (optional):</b> Antworten vorlesen (🔊) geht sofort. Für das Mikrofon-Symbol braucht der Handy-Browser eine https-Adresse: Tailscale-Admin → DNS → „HTTPS-Zertifikate“ aktivieren, dann am PC in der Eingabeaufforderung <code>tailscale serve --bg 8484</code> eingeben und die dort angezeigte https-Adresse am Handy öffnen. Ohne das: die Mikrofon-Taste der Handy-Tastatur zum Diktieren benutzen.</li>
             <li>Tipp: Im Handy-Browser „Zum Startbildschirm hinzufügen“ – dann ist Jarvis wie eine App.</li>
           </ol>
           <div class="row"><button class="primary" id="remoteCode">Kopplungscode erzeugen</button><button class="ghost" id="remoteRecheck">Neu prüfen</button><span class="pair-code hidden" id="pairCode"></span></div>

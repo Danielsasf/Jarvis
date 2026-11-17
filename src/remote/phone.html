@@ -14,7 +14,7 @@ select{flex:1;min-width:0}button{cursor:pointer;color:var(--accent)}button.p{bac
 .u{align-self:flex-end;background:#0b2234;border-color:var(--line2)}.a{align-self:flex-start;background:var(--panel);border-left:2px solid var(--accent)}
 .e{align-self:center;color:#ffb8b8;border-color:var(--bad)}
 form{display:flex;gap:6px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
-textarea{flex:1;resize:none;height:42px;max-height:120px}
+#mic.on{background:var(--accent);color:#011018}#spk.on{color:#011018;background:var(--accent)}textarea{flex:1;resize:none;height:42px;max-height:120px}
 #pair{margin:auto;padding:24px;display:flex;flex-direction:column;gap:12px;max-width:340px;text-align:center}
 #pair input{font-size:24px;letter-spacing:.3em;text-align:center}.hid{display:none!important}.mut{color:var(--muted);font-size:13px}
 </style></head><body>
@@ -23,13 +23,14 @@ textarea{flex:1;resize:none;height:42px;max-height:120px}
 <input id="code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"><button class="p" id="pairBtn">Koppeln</button><p id="perr" class="mut"></p></div>
 <header id="top" class="hid"><b>JARVIS</b><select id="chats"></select><button id="newChat" title="Neuer Chat">+</button></header>
 <div id="msgs" class="hid"></div>
-<form id="form" class="hid"><textarea id="inp" rows="1" placeholder="Frage stellen …"></textarea><button class="p" id="go">Senden</button></form>
+<div id="hint" class="mut hid" style="padding:4px 12px"></div>
+<form id="form" class="hid"><button type="button" id="spk" title="Antworten vorlesen">🔊</button><button type="button" id="mic" title="Sprechen" class="hid">🎤</button><textarea id="inp" rows="1" placeholder="Frage stellen …"></textarea><button class="p" id="go">Senden</button></form>
 <script>
 const $=id=>document.getElementById(id);let token=null,chatId=null,busy=false;
 try{token=localStorage.getItem('jarvisToken')}catch{}
 const clean=t=>t.replace(/<(merken|vergessen)>[\s\S]*?(<\/\1>|$)/g,'').replace(/```widget[\s\S]*?(```|$)/g,'[Grafik – am PC sichtbar]').trim();
 const api=(p,o={})=>fetch(p,{...o,headers:{...(o.headers||{}),authorization:'Bearer '+token,'content-type':'application/json'}});
-function show(auth){$('pair').classList.toggle('hid',auth);for(const i of['top','msgs','form'])$(i).classList.toggle('hid',!auth)}
+let show=function(auth){$('pair').classList.toggle('hid',auth);for(const i of['top','msgs','form'])$(i).classList.toggle('hid',!auth)};
 function bubble(cls,text){const d=document.createElement('div');d.className='m '+cls;d.textContent=text;$('msgs').appendChild(d);$('msgs').scrollTop=1e9;return d}
 async function loadChats(sel){const r=await api('/api/chats');if(r.status===401){token=null;try{localStorage.removeItem('jarvisToken')}catch{}return show(false)}
  show(true);const list=await r.json();const s=$('chats');s.innerHTML='<option value="">Neuer Chat</option>'+list.map(c=>`<option value="${c.id}">${c.title.replace(/[<>&"]/g,'')}</option>`).join('');s.value=sel||'';}
@@ -43,9 +44,28 @@ $('form').onsubmit=async e=>{e.preventDefault();const text=$('inp').value.trim()
   for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
    while((i=buf.indexOf('\n\n'))>=0){const line=buf.slice(0,i).replace(/^data: /,'');buf=buf.slice(i+2);let j;try{j=JSON.parse(line)}catch{continue}
     if(j.t==='start')chatId=j.chatId;if(j.t==='delta'){acc+=j.text;out.textContent=clean(acc)||'…';$('msgs').scrollTop=1e9}
-    if(j.t==='done'){out.textContent=clean(j.text);chatId=j.chatId;await loadChats(chatId)}
+    if(j.t==='done'){out.textContent=clean(j.text);chatId=j.chatId;await loadChats(chatId);say(j.text,()=>{if(talking)setTimeout(listen,300)})}
     if(j.t==='error'){out.className='m e';out.textContent=j.message}}}
- }catch(err){out.className='m e';out.textContent='Verbindung unterbrochen. Läuft Jarvis am PC und ist Tailscale an?'}finally{busy=false;$('go').disabled=false}};
+ }catch(err){out.className='m e';out.textContent='Verbindung unterbrochen. Läuft Jarvis am PC und ist Tailscale an?'}finally{busy=false;$('go').disabled=false;if(talking&&!syn?.speaking&&!speak)setTimeout(listen,300)}};
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&matchMedia('(hover:hover)').matches){e.preventDefault();$('form').requestSubmit()}});
+// ---- Sprache ----
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let speak=false,rec=null,talking=false;
+try{speak=localStorage.getItem('jarvisSpeak')==='1'}catch{}
+const syn=window.speechSynthesis;
+function setSpk(v){speak=v;$('spk').classList.toggle('on',v);try{localStorage.setItem('jarvisSpeak',v?'1':'0')}catch{};if(!v&&syn)syn.cancel()}
+$('spk').onclick=()=>setSpk(!speak);setSpk(speak);if(!syn)$('spk').classList.add('hid');
+const plain=t=>t.replace(/```[\s\S]*?```/g,' ').replace(/\[Grafik[^\]]*\]/g,' ').replace(/[*_#`>|]/g,'').replace(/https?:\/\/\S+/g,'Link').replace(/\s+/g,' ').trim();
+function say(text,then){if(!speak||!syn){then&&then();return}try{syn.cancel();const u=new SpeechSynthesisUtterance(plain(text).slice(0,2500));u.lang='de-DE';u.rate=1.1;
+ const v=syn.getVoices().find(x=>/^de/i.test(x.lang));if(v)u.voice=v;u.onend=u.onerror=()=>then&&then();syn.speak(u)}catch{then&&then()}}
+function listen(){if(!SR||busy)return;rec=new SR();rec.lang='de-DE';rec.interimResults=true;rec.continuous=false;let fin='';
+ rec.onresult=e=>{let t='';for(const r of e.results){t+=r[0].transcript;if(r.isFinal)fin=t}$('inp').value=t};
+ rec.onerror=e=>{talking=false;$('mic').classList.remove('on');if(e.error==='not-allowed')hint('Mikrofon nicht erlaubt. Erlaube es in den Browser-Einstellungen.')};
+ rec.onend=()=>{$('mic').classList.toggle('on',talking);const t=($('inp').value||'').trim();if(talking&&t){$('form').requestSubmit()}else talking=false;$('mic').classList.toggle('on',talking)};
+ $('mic').classList.add('on');try{rec.start()}catch{}}
+function hint(t){$('hint').textContent=t;$('hint').classList.remove('hid')}
+if(SR&&window.isSecureContext){$('mic').classList.remove('hid');
+ $('mic').onclick=()=>{if(talking){talking=false;try{rec.stop()}catch{};if(syn)syn.cancel();$('mic').classList.remove('on');return}talking=true;if(syn)syn.cancel();listen()}}
+else if(token!==undefined){hint(SR?'Tipp: Für das Mikrofon-Symbol braucht der Browser https. Bis dahin: Mikrofon-Taste auf deiner Handy-Tastatur zum Diktieren nutzen.':'Tipp: Zum Sprechen die Mikrofon-Taste deiner Handy-Tastatur nutzen.')}
+const _show=show;show=function(a){_show(a);if(!a)$('hint').classList.add('hid')};
 if(token)loadChats().catch(()=>show(false));else show(false);
 </script></body></html>

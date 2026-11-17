@@ -51,6 +51,12 @@ class RemoteServer {
         srv.removeListener('error', reject);
         this.server = srv; this.host = host; this.port = srv.address().port;
         this.log(`Handy-Zugang an: http://${host}:${this.port}`);
+        // zusätzlich nur lokal (127.0.0.1): damit `tailscale serve` (https) dahin weiterleiten kann; von außen nicht erreichbar
+        if (host !== '127.0.0.1') {
+          const lo = http.createServer(srv.listeners('request')[0]);
+          lo.once('error', () => {});
+          lo.listen(this.port, '127.0.0.1', () => { this.local = lo; });
+        }
         resolve(this.status());
       });
     });
@@ -58,6 +64,8 @@ class RemoteServer {
   stop() {
     const s = this.server;
     this.server = null; this.pairing = null;
+    const lo = this.local; this.local = null;
+    if (lo) { lo.closeAllConnections?.(); lo.close(); }
     if (s) { s.closeAllConnections?.(); s.close(); this.log('Handy-Zugang aus'); }
   }
 

@@ -48,3 +48,10 @@ Du kannst von unterwegs mit deinem Jarvis chatten (Text). Der PC muss an sein un
 4. Im Handy-Browser "Zum Startbildschirm hinzufügen" - dann ist es wie eine App.
 Sicherheit: erreichbar nur im privaten Tailscale-Netz, nicht im offenen Internet. Das Handy kann nur chatten
 (keine Dateien, Programme oder Schlüssel). Code gilt 5 Minuten, einmalig. Gekoppelte Handys kannst du jederzeit sperren.
+
+HANDY-SPRACHE (ab 2.6.0)
+------------------------
+Am Handy gibt es 🔊 (Antworten werden vorgelesen) und - mit https-Adresse - 🎤 (Gespräch: sprechen, Jarvis antwortet
+laut und hört danach wieder zu; nochmal 🎤 tippen beendet). https einrichten: Tailscale-Admin > DNS > HTTPS-Zertifikate
+aktivieren, dann am PC "tailscale serve --bg 8484" und die angezeigte https-Adresse am Handy öffnen (neu koppeln).
+Ohne https: Mikrofon-Taste der Handy-Tastatur zum Diktieren benutzen.
