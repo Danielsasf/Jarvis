@@ -1,0 +1,31 @@
+JARVIS – Version 2
+==================
+
+STARTEN
+1. ZIP-Datei entpacken (Rechtsklick > "Alle extrahieren").
+2. Im Ordner "Jarvis-win32-x64" auf Jarvis.exe doppelklicken.
+3. Falls Windows "Der Computer wurde durch Windows geschützt" meldet:
+   "Weitere Informationen" > "Trotzdem ausführen". (Die App ist nicht signiert.)
+   Tipp: Rechtsklick auf Jarvis.exe > "Senden an" > "Desktop (Verknüpfung erstellen)".
+
+KIs VERBINDEN
+- Beim ersten Start öffnen sich die Einstellungen.
+- Bei einem Anbieter auf "Verbinden" klicken, "Schlüssel holen" öffnet die Seite,
+  wo du den API-Schlüssel erstellst. Schlüssel einfügen > "Verbinden".
+- Ollama und LM Studio (lokal auf deinem PC) werden automatisch gefunden, wenn sie laufen.
+- Reihenfolge mit den Pfeilen ändern: Die oberste aktive KI antwortet zuerst.
+  Fällt sie aus (überlastet, Limit, kein Internet), übernimmt automatisch die nächste.
+- Schlüssel werden mit dem Windows-Datenschutz verschlüsselt auf deinem PC gespeichert.
+
+SPRACHE
+- Mikrofon klicken (nochmal klicken zum Senden) oder gedrückt halten,
+  bzw. die Leertaste halten, wenn du nicht im Textfeld bist.
+- Für Spracheingabe brauchst du ChatGPT, Groq oder Gemini verbunden.
+- Lautsprecher-Symbol oben: Vorlesen an/aus. Esc stoppt das Vorlesen.
+
+UPDATES
+- Ab Version 2 meldet Jarvis neue Versionen selbst: links erscheint "Update bereit" > "Installieren".
+  Einstellungen, Schlüssel und alles andere bleiben erhalten.
+
+DATEN
+Einstellungen und Protokoll liegen in %APPDATA%\Jarvis

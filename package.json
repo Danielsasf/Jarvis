@@ -1,0 +1,16 @@
+{
+  "name": "jarvis",
+  "productName": "Jarvis",
+  "version": "2.0.0",
+  "description": "Persönlicher KI-Assistent, der mehrere KIs verbindet",
+  "main": "src/boot.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.3.3"
+  }
+}

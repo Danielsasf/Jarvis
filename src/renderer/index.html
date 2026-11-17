@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self' blob:; img-src 'self' data:" />
+  <title>Jarvis</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <aside class="hud">
+    <div class="corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="core-wrap">
+      <canvas id="core"></canvas>
+    </div>
+    <div class="hud-id">
+      <h1>JARVIS</h1>
+      <p class="status" id="status"><span class="dot"></span><span id="statusText">BEREIT</span></p>
+    </div>
+
+    <dl class="readouts">
+      <div><dt>Verbindung</dt><dd id="roLink">—</dd></div>
+      <div><dt>Reaktion</dt><dd id="roSpeed">—</dd></div>
+      <div><dt>KIs aktiv</dt><dd id="roCount">0</dd></div>
+      <div><dt>Systemzeit</dt><dd id="roClock">--:--:--</dd></div>
+      <div class="ro-click" id="roMemoryBox" title="Gedächtnis öffnen"><dt>Gedächtnis</dt><dd id="roMemory">0 Einträge</dd></div>
+    </dl>
+
+    <div class="update-banner hidden" id="updateBanner">
+      <span>Update <b id="updateVersion"></b> bereit</span>
+      <button class="primary" id="updateInstall">Installieren</button>
+    </div>
+
+    <nav class="hud-actions">
+      <button class="hud-btn" id="speakToggle" title="Antworten vorlesen">
+        <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+        <span>Stimme</span>
+      </button>
+      <button class="hud-btn" id="newChat" title="Neuer Chat">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Neu</span>
+      </button>
+      <button class="hud-btn" id="openPacks" title="Pakete">
+        <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+        <span>Pakete</span>
+      </button>
+      <button class="hud-btn" id="openSettings" title="Einstellungen">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+        <span>System</span>
+      </button>
+    </nav>
+    <p class="version" id="version"></p>
+  </aside>
+
+  <section class="console">
+    <header class="console-head">
+      <span class="tag">KONSOLE</span>
+      <span class="line"></span>
+      <span class="tag dim" id="sessionInfo">SITZUNG 01</span>
+    </header>
+
+    <main id="chat">
+      <section class="welcome" id="welcome">
+        <p class="kicker">SYSTEME ONLINE</p>
+        <h2>Wie kann ich helfen?</h2>
+        <p id="welcomeHint">Schreib eine Nachricht oder halte die Leertaste zum Sprechen.</p>
+        <div class="chips" id="chips"></div>
+        <button class="primary hidden" id="welcomeConnect">KI verbinden</button>
+      </section>
+      <div id="messages"></div>
+    </main>
+
+    <footer class="composer">
+      <button class="mic" id="mic" title="Klicken oder gedrückt halten zum Sprechen (Leertaste geht auch)">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+      <div class="suggest hidden" id="suggest"></div>
+      <div class="field">
+        <textarea id="input" rows="1" placeholder="Frage stellen oder / für Pakete …"></textarea>
+      </div>
+      <button class="send" id="send" title="Senden">
+        <svg class="i-send" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+        <svg class="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+      </button>
+    </footer>
+  </section>
+
+  <aside class="settings" id="settings" aria-hidden="true">
+    <div class="settings-head">
+      <nav class="tabs" id="tabs">
+        <button data-tab="kis" class="on">KIs</button>
+        <button data-tab="pakete">Pakete</button>
+        <button data-tab="gedaechtnis">Gedächtnis</button>
+        <button data-tab="system">System</button>
+      </nav>
+      <button class="icon-btn" id="closeSettings" title="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="settings-body">
+      <section data-pane="kis">
+        <h3>KI-Anbieter</h3>
+        <p class="muted">Jarvis fragt die oberste aktive KI zuerst. Fällt sie aus, übernimmt automatisch die nächste. Veraltete Modelle werden automatisch ersetzt.</p>
+        <div id="providerList"></div>
+      </section>
+
+      <section data-pane="pakete" class="hidden">
+        <h3>Pakete</h3>
+        <p class="muted">Pakete geben Jarvis neue Fähigkeiten. Aufrufen mit dem Befehl (z. B. <code>/lernen</code>) – oder einfach fragen, Jarvis erkennt passende Pakete selbst.</p>
+        <div class="row">
+          <button class="primary" id="newPack">+ Eigenes Paket</button>
+          <button class="ghost" id="importPack">Datei hinzufügen</button>
+          <button class="link" id="packFolder">Ordner öffnen</button>
+        </div>
+        <div id="packEditor" class="pack-editor hidden">
+          <div class="row"><input type="text" id="peName" placeholder="Name, z. B. Fitness" maxlength="60"><input type="text" id="peCmd" placeholder="/befehl" maxlength="31"></div>
+          <input type="text" id="peDesc" placeholder="Kurze Beschreibung" maxlength="200">
+          <textarea id="peExamples" rows="2" placeholder="Beispiele, eins pro Zeile (optional)"></textarea>
+          <textarea id="peInstr" rows="7" placeholder="Anweisungen: Was soll Jarvis in diesem Paket tun? Wie soll er antworten?"></textarea>
+          <div class="row end"><button class="ghost" id="peCancel">Abbrechen</button><button class="primary" id="peSave">Speichern</button></div>
+        </div>
+        <div id="packList"></div>
+      </section>
+
+      <section data-pane="gedaechtnis" class="hidden">
+        <h3>Gedächtnis</h3>
+        <p class="muted">Das merkt sich Jarvis über alle Chats hinweg. Sag einfach „Merk dir …“ oder „Vergiss …“ – oder trag es hier ein.</p>
+        <div class="row"><input type="text" id="memInput" placeholder="z. B. Ich heiße Daniel und mag es kurz" maxlength="300"><button class="primary" id="memAdd">Merken</button></div>
+        <ul class="mem-list" id="memList"></ul>
+        <div class="row end"><button class="danger" id="memClear">Alles vergessen</button></div>
+      </section>
+
+      <section data-pane="system" class="hidden">
+        <h3>Persönlichkeit</h3>
+        <p class="muted">So soll sich Jarvis verhalten.</p>
+        <textarea id="systemPrompt" rows="5"></textarea>
+        <div class="row end">
+          <button class="ghost" id="resetPrompt">Zurücksetzen</button>
+          <button class="primary" id="savePrompt">Speichern</button>
+        </div>
+
+        <h3>Updates</h3>
+        <div class="row">
+          <span class="muted flush grow" id="updateInfo">Version –</span>
+          <button class="ghost" id="checkUpdate">Nach Updates suchen</button>
+        </div>
+        <label class="row toggle-row"><span class="grow">Beim Start automatisch prüfen</span>
+          <span class="switch"><input type="checkbox" id="autoUpdate"><span></span></span></label>
+
+        <h3>Protokoll</h3>
+        <pre id="log" class="log"></pre>
+      </section>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="toast" id="toast"></div>
+
+  <script src="hud.js"></script>
+  <script src="speech.js"></script>
+  <script src="render.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

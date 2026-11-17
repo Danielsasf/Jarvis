@@ -1,0 +1,39 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+const call = async (channel, ...args) => {
+  try {
+    return await ipcRenderer.invoke(channel, ...args);
+  } catch (err) {
+    throw new Error(String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+  }
+};
+const on = (channel) => (fn) => ipcRenderer.on(channel, (_e, payload) => fn(payload));
+
+contextBridge.exposeInMainWorld('jarvis', {
+  getState: () => call('state:get'),
+  connect: (id, key) => call('provider:connect', id, key),
+  disconnect: (id) => call('provider:disconnect', id),
+  updateProvider: (id, patch) => call('provider:update', id, patch),
+  setOrder: (order) => call('order:set', order),
+  setSettings: (patch) => call('settings:set', patch),
+  detectLocal: () => call('local:detect'),
+  send: (reqId, messages) => call('chat:send', reqId, messages),
+  stop: (reqId) => call('chat:stop', reqId),
+  transcribe: (audio, mime) => call('stt:transcribe', audio, mime),
+  openExternal: (url) => call('open:external', url),
+  checkUpdate: () => call('update:check'),
+  installUpdate: () => call('update:install'),
+  togglePack: (id, on) => call('packs:toggle', id, on),
+  savePack: (data) => call('packs:save', data),
+  importPack: () => call('packs:import'),
+  deletePack: (id) => call('packs:delete', id),
+  openPackFolder: () => call('packs:folder'),
+  addMemory: (text) => call('memory:add', text),
+  removeMemory: (id) => call('memory:remove', id),
+  clearMemory: () => call('memory:clear'),
+  onLog: on('jarvis:log'),
+  onState: on('jarvis:state'),
+  onDelta: on('chat:delta'),
+  onStatus: on('chat:status'),
+  onUpdate: on('update:status'),
+});
