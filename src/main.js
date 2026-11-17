@@ -14,6 +14,7 @@ const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
 const calLib = require('./calendar');
+const gcalLib = require('./gcal');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -86,6 +87,7 @@ function normalize(c) {
   accountsLib.migrate(c);
   c.remote = { enabled: false, port: 8484, devices: [], ...(c.remote || {}) };
   if (!Array.isArray(c.remote.devices)) c.remote.devices = [];
+  c.gcal = { clientId: '', clientSecret: '', refresh: '', ...(c.gcal || {}) };
   c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
@@ -126,6 +128,7 @@ function publicState() {
       beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), instructions: p.instructions })),
     memory: memory.list(),
     remote: remoteInfo(),
+    gcal: { clientId: cfg.gcal.clientId, hasSecret: !!cfg.gcal.clientSecret, connected: !!cfg.gcal.refresh },
     cal: { enabled: cfg.cal.enabled, hasUrl: !!cfg.cal.url, days: cfg.cal.days },
     mail: { enabled: cfg.mail.enabled, preset: cfg.mail.preset, host: cfg.mail.host, port: cfg.mail.port, user: cfg.mail.user, hasPass: !!cfg.mail.pass, days: cfg.mail.days },
     settings: cfg.settings,
@@ -263,7 +266,7 @@ ipcMain.handle('local:detect', async () => {
 
 // Eine Antwort erzeugen (PC-Fenster und Handy-Zugang nutzen dieselbe Funktion).
 // onStatus(payload) / onDelta(text) melden den Fortschritt; abortSignal bricht ab.
-async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abortSignal = new AbortController().signal } = {}) {
+async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abortSignal = new AbortController().signal, canPropose = false } = {}) {
   const clean = (messages || [])
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .map((m) => ({ role: m.role, content: m.content }))
@@ -278,17 +281,22 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     onStatus({ phase: 'pack', pack: invoked.name });
   }
   let system = buildSystem(invoked);
-  if (cfg.cal.enabled && cfg.cal.url && last?.role === 'user' && calLib.asksForCalendar(last.content)) {
+  const gc = cfg.cal.enabled ? getGcal() : null;
+  const wantsCal = last?.role === 'user' && (calLib.asksForCalendar(last.content) || calLib.asksToChange(last.content));
+  if (cfg.cal.enabled && (cfg.cal.url || gc) && wantsCal) {
     onStatus({ phase: 'cal' });
-    const w = calLib.windowFor(last.content, cfg.cal.days);
+    const change = calLib.asksToChange(last.content);
+    const w = calLib.windowFor(last.content, change ? Math.max(14, cfg.cal.days) : cfg.cal.days);
     try {
-      const evs = await calLib.fetchEvents(decrypt(cfg.cal.url), w.from, w.to);
-      system += '\n\n' + calLib.promptBlock(evs, { label: w.label });
+      const evs = gc ? await gc.listEvents(w.from, w.to) : await calLib.fetchEvents(decrypt(cfg.cal.url), w.from, w.to);
+      system += '\n\n' + calLib.promptBlock(evs, { label: w.label, canWrite: !!gc && canPropose });
       log(`Kalender: ${evs.length} Termine gelesen`);
     } catch (err) {
       system += '\n\n' + calLib.promptBlock([], { error: String(err.message).slice(0, 200), label: w.label });
       log(`Kalender-Abruf fehlgeschlagen: ${String(err.message).slice(0, 120)}`);
     }
+  } else if (wantsCal && calLib.asksToChange(last.content)) {
+    system += '\n\nHinweis: Der Nutzer möchte etwas im Kalender ändern, aber dafür ist noch kein Kalender-Zugang eingerichtet (Einstellungen → Kalender). Behaupte nie, etwas eingetragen zu haben, sag ihm kurz, was fehlt.';
   }
   if (cfg.mail.enabled && cfg.mail.pass && last?.role === 'user' && mailLib.asksForMail(last.content)) {
     onStatus({ phase: 'mail' });
@@ -345,7 +353,13 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     saveCfg();
     const mem = memory.apply(result.text);
     if (mem.saved.length || mem.forgotten.length) emit('jarvis:state', publicState());
-    return { text: stripTags(result.text).trim(), memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
+    const pr = gcalLib.extract(result.text);
+    let proposals = [];
+    if (pr.proposals.length && canPropose && getGcal()) { try { proposals = await makeProposals(pr.proposals); } catch (err) { log(`Terminvorschlag fehlgeschlagen: ${String(err.message).slice(0, 100)}`); } }
+    let note = '';
+    if (pr.proposals.length && !canPropose) note = '\n\n(Nichts eingetragen: Termine trage ich nur im Jarvis-Fenster am PC ein, nach deiner Bestätigung.)';
+    else if (pr.rejected && !proposals.length) note = '\n\n(Ein Terminvorschlag war ungültig und wurde verworfen. Sag es bitte noch einmal genauer.)';
+    return { text: (stripTags(pr.clean).trim() + note).trim(), proposals, memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
   } catch (err) {
     if (abortSignal.aborted) return { stopped: true };
     for (const f of err.failures || []) recordSpeed(f.id, f.ms, false);
@@ -360,6 +374,7 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
   running.set(reqId, userAbort);
   try {
     return await runChat(messages, {
+      canPropose: true,
       abortSignal: userAbort.signal,
       onStatus: (st) => emit('chat:status', { reqId, ...st }),
       onDelta: (text) => emit('chat:delta', { reqId, text }),
@@ -406,6 +421,64 @@ ipcMain.handle('mail:test', async () => {
   const list = await mailLib.fetchRecent(mailCreds(), { days: cfg.mail.days, max: 50, bodyChars: 50 });
   return { total: list.length, unseen: list.filter((x) => x.unseen).length };
 });
+
+// ---------- Google Kalender: Anmeldung, Vorschläge bestätigen ----------
+let gcalInst = null;
+function getGcal() {
+  const g = cfg.gcal;
+  if (!g.refresh || !g.clientId || !g.clientSecret) return null;
+  const key = g.clientId + g.refresh;
+  if (!gcalInst || gcalInst.key !== key) { gcalInst = new gcalLib.GCal({ clientId: g.clientId, clientSecret: decrypt(g.clientSecret), refreshToken: decrypt(g.refresh), tokenUrl: process.env.JARVIS_GCAL_TOKEN || undefined, apiBase: process.env.JARVIS_GCAL_API || undefined }); gcalInst.key = key; }
+  return gcalInst;
+}
+const pendingProposals = new Map(); // id → { p, created }  (nur im Speicher; Änderung erst nach Klick im Fenster)
+ipcMain.handle('gcal:set', (_e, p = {}) => {
+  if (typeof p.clientId === 'string') cfg.gcal.clientId = p.clientId.trim().slice(0, 300);
+  if (typeof p.clientSecret === 'string' && p.clientSecret.trim()) cfg.gcal.clientSecret = encrypt(p.clientSecret.trim().slice(0, 300));
+  saveCfg();
+  return publicState();
+});
+ipcMain.handle('gcal:connect', async () => {
+  const g = cfg.gcal;
+  if (!g.clientId || !g.clientSecret) throw new Error('Trage zuerst Client-ID und Client-Geheimnis ein und klicke „Speichern“.');
+  const { refreshToken } = await gcalLib.authorize({ clientId: g.clientId, clientSecret: decrypt(g.clientSecret), openUrl: (url) => shell.openExternal(url) });
+  g.refresh = encrypt(refreshToken); gcalInst = null; saveCfg();
+  log('Google Kalender verbunden');
+  const w = calLib.windowFor('', 7);
+  try { await getGcal().listEvents(w.from, w.to); } catch (err) { throw new Error(`Verbunden, aber der Kalender lässt sich nicht lesen: ${err.message}`); }
+  return publicState();
+});
+ipcMain.handle('gcal:disconnect', () => { cfg.gcal.refresh = ''; gcalInst = null; saveCfg(); return publicState(); });
+const timeMs = (p) => (p.allDay ? new Date(+p.start.slice(0, 4), +p.start.slice(5, 7) - 1, +p.start.slice(8, 10)).getTime() : new Date(+p.start.slice(0, 4), +p.start.slice(5, 7) - 1, +p.start.slice(8, 10), +p.start.slice(11, 13), +p.start.slice(14, 16)).getTime());
+async function makeProposals(list) {
+  const gc = getGcal(); const out = [];
+  for (const p of list) {
+    let current = null;
+    if (p.action === 'move') {
+      try { const e = await gc.getEvent(p.id); current = { title: e.title, start: e.start, end: e.end, allDay: e.allDay }; }
+      catch { continue; } // erfundene/ungültige ID: Vorschlag verwerfen
+    }
+    const id = require('crypto').randomBytes(9).toString('hex');
+    pendingProposals.set(id, { p, created: Date.now() });
+    out.push({ id, action: p.action, title: p.title || current?.title || '', start: p.start, end: p.end, allDay: p.allDay, location: p.location, current });
+  }
+  for (const [k, v] of pendingProposals) if (Date.now() - v.created > 2 * 3600000) pendingProposals.delete(k);
+  return out;
+}
+ipcMain.handle('cal:confirm', async (_e, id) => {
+  const item = pendingProposals.get(id);
+  if (!item) throw new Error('Dieser Vorschlag ist abgelaufen. Bitte frag Jarvis noch einmal.');
+  const gc = getGcal();
+  if (!gc) throw new Error('Google Kalender ist nicht verbunden.');
+  pendingProposals.delete(id);
+  const { p } = item;
+  try {
+    const ev = p.action === 'create' ? await gc.insert(p) : await gc.move(p.id, p);
+    log(p.action === 'create' ? 'Kalender: Termin angelegt (bestätigt)' : 'Kalender: Termin verschoben (bestätigt)');
+    return { ok: true, link: ev.link || '' };
+  } catch (err) { pendingProposals.set(id, item); throw err; }
+});
+ipcMain.handle('cal:dismiss', (_e, id) => { pendingProposals.delete(id); return true; });
 
 // ---------- Kalender (nur lesen) ----------
 ipcMain.handle('cal:set', (_e, p = {}) => {

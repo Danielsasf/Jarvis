@@ -72,3 +72,12 @@ Einstellungen > Kalender: die "Geheime Adresse im iCal-Format" deines Kalenders 
 dann "Kalender lesen erlauben" einschalten. Fragen wie "Was steht morgen an?" oder "Habe ich Freitag Zeit?".
 Nur lesen. Termine anlegen/verschieben folgt in einem späteren Update (mit Bestätigung vor jeder Änderung).
 Die Adresse ist wie ein Passwort: nicht weitergeben. Wird verschlüsselt gespeichert.
+
+TERMINE ANLEGEN & VERSCHIEBEN (ab 2.9.0)
+----------------------------------------
+Einstellungen > Kalender > "Termine anlegen & verschieben": einmalig bei Google ein kostenloses Projekt anlegen
+(Anleitung steht dort), Client-ID + Client-Geheimnis einfügen, "Mit Google verbinden".
+Danach z. B.: "Trag morgen um 15 Uhr Zahnarzt ein" oder "Verschiebe Mathe auf 10 Uhr".
+Jarvis schlägt nur vor: im Chat erscheint eine Karte. Erst nach Klick auf "Eintragen"/"Verschieben" wird der Kalender geändert.
+Nichts wird gelöscht. Nur der Haupt-Kalender. Am Handy-Chat werden keine Termine eingetragen (nur am PC bestätigen).
+Wichtig: Beim Google-Zustimmungsbildschirm den Status auf "In Produktion" setzen, sonst läuft die Verbindung nach 7 Tagen ab.

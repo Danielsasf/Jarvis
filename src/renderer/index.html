@@ -216,7 +216,22 @@
           <div class="row"><button class="primary" id="calSave">Speichern &amp; testen</button><button class="ghost" id="calForget">Zugang löschen</button></div>
           <p class="wake-status" id="calStatus"></p>
           <p class="muted"><b>So kommst du an die Adresse (Google Kalender, am PC im Browser):</b> calendar.google.com → Zahnrad → Einstellungen → links unter „Einstellungen für meine Kalender“ deinen Kalender wählen → „Kalender integrieren“ → <b>„Geheime Adresse im iCal-Format“</b> kopieren und hier einfügen. Funktioniert genauso mit anderen Kalendern, die eine iCal-Adresse anbieten (Apple, Outlook, Nextcloud …).</p>
-        </section>
+                  <h3>Termine anlegen &amp; verschieben (optional)</h3>
+          <p class="muted">Dafür meldest du Jarvis bei Google an (einmalig, kostenlos). Jarvis <b>schlägt nur vor</b> – jeder neue oder verschobene Termin erscheint als Karte im Chat und wird <b>erst nach deinem Klick auf „Eintragen“</b> geändert. Nichts wird gelöscht. Nur der Haupt-Kalender.</p>
+          <div class="setting"><div><b>Client-ID</b></div><input type="text" id="gClientId" placeholder="….apps.googleusercontent.com" autocomplete="off"></div>
+          <div class="setting"><div><b>Client-Geheimnis</b><small id="gSecretNote">Noch nichts gespeichert.</small></div><input type="password" id="gSecret" placeholder="GOCSPX-…" autocomplete="new-password"></div>
+          <div class="row"><button class="primary" id="gConnect">Mit Google verbinden</button><button class="ghost" id="gSave">Nur speichern</button><button class="ghost hidden" id="gDisconnect">Trennen</button></div>
+          <p class="wake-status" id="gStatus"></p>
+          <p class="muted"><b>Einmalige Einrichtung (am PC, ca. 10 Minuten):</b></p>
+          <ol class="muted steps-list">
+            <li><b>console.cloud.google.com</b> öffnen, mit deinem Google-Konto anmelden, oben ein neues Projekt anlegen (Name z. B. „Jarvis“).</li>
+            <li>„APIs &amp; Dienste“ → „Bibliothek“ → <b>Google Calendar API</b> suchen → „Aktivieren“.</li>
+            <li>„APIs &amp; Dienste“ → <b>OAuth-Zustimmungsbildschirm</b> (heißt teils „Google Auth Platform“): Typ „Extern“, App-Name „Jarvis“, deine E-Mail eintragen, speichern. Danach den Status auf <b>„In Produktion“ veröffentlichen</b> (sonst läuft die Verbindung nach 7 Tagen ab).</li>
+            <li>„Anmeldedaten“ → „Anmeldedaten erstellen“ → <b>OAuth-Client-ID</b> → Anwendungstyp <b>„Desktop-App“</b>. Client-ID und Client-Geheimnis kopieren und oben einfügen.</li>
+            <li>„Mit Google verbinden“ klicken. Google warnt „App nicht überprüft“: das ist normal, es ist deine eigene App. „Erweitert“ → „Weiter zu Jarvis“ → Zugriff auf den Kalender erlauben.</li>
+          </ol>
+          <p class="muted">Die Bezeichnungen bei Google ändern sich manchmal etwas; die Schritte bleiben gleich.</p>
+</section>
 
         <section data-pane="mail" class="hidden">
           <h2>E-Mail</h2>

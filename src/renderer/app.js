@@ -100,6 +100,44 @@ function addStep(bubble, text, warn = false) {
   bubble.querySelector('.steps').appendChild(s);
   scrollDown();
 }
+function fmtLocal(s, allDay) {
+  const d = new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +(s.slice(11, 13) || 0), +(s.slice(14, 16) || 0));
+  return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) + (allDay ? ' (ganztägig)' : ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
+}
+function fmtEventMs(ms, allDay) {
+  const d = new Date(ms);
+  return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) + (allDay ? ' (ganztägig)' : ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
+}
+// Bestätigungskarte: Jarvis trägt nur nach Klick auf „Eintragen“ etwas ein
+function addProposal(bubble, p) {
+  const card = document.createElement('div');
+  card.className = 'proposal';
+  const draw = () => {
+    card.innerHTML = '';
+    const h = document.createElement('div'); h.className = 'p-head';
+    h.textContent = p.action === 'create' ? 'Neuer Termin' : 'Termin verschieben';
+    const t = document.createElement('div'); t.className = 'p-title'; t.textContent = p.title || '(ohne Titel)';
+    const w = document.createElement('div'); w.className = 'p-when';
+    const to = p.start ? `${fmtLocal(p.start, p.allDay)} – ${p.allDay ? '' : fmtLocal(p.end, false).split(' ').pop()}` : '';
+    w.textContent = p.action === 'move' && p.current ? `${fmtEventMs(p.current.start, p.current.allDay)}  →  ${to || 'gleiche Zeit'}` : to;
+    card.append(h, t, w);
+    if (p.location) { const l = document.createElement('div'); l.className = 'p-when'; l.textContent = 'Ort: ' + p.location; card.append(l); }
+    const row = document.createElement('div'); row.className = 'p-row';
+    if (p.status === 'done') { row.textContent = '✓ Eingetragen'; row.classList.add('ok'); }
+    else if (p.status === 'dismissed') { row.textContent = 'Verworfen'; row.classList.add('muted'); }
+    else {
+      const ok = document.createElement('button'); ok.className = 'primary'; ok.textContent = p.action === 'create' ? 'Eintragen' : 'Verschieben';
+      const no = document.createElement('button'); no.className = 'ghost'; no.textContent = 'Verwerfen';
+      ok.onclick = async () => { ok.disabled = no.disabled = true; ok.textContent = '…'; try { await jarvis.confirmEvent(p.id); p.status = 'done'; draw(); toast('Im Kalender eingetragen'); } catch (err) { toast(String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 6000); ok.disabled = no.disabled = false; ok.textContent = 'Nochmal versuchen'; } };
+      no.onclick = () => { jarvis.dismissEvent(p.id); p.status = 'dismissed'; draw(); };
+      row.append(ok, no);
+    }
+    card.append(row);
+  };
+  draw();
+  bubble.appendChild(card);
+  scrollDown();
+}
 function addMeta(bubble, text, res) {
   const m = document.createElement('div');
   m.className = 'meta';
@@ -162,7 +200,7 @@ function renderMessages(chat) {
   els.messages.innerHTML = '';
   for (const m of chat.messages) {
     const b = makeBubble(m.role, m.content);
-    if (m.role === 'assistant') addMeta(b, m.content, { by: m.by });
+    if (m.role === 'assistant') { addMeta(b, m.content, { by: m.by }); for (const p of m.proposals || []) addProposal(b, p); }
   }
   const run = runs.get(chat.id);
   if (run) {
@@ -286,7 +324,7 @@ async function sendMessage(text) {
     const res = await jarvis.send(reqId, chat.messages.map(({ role, content }) => ({ role, content })));
     if (res.stopped) throw Object.assign(new Error('gestoppt'), { stopped: true });
     run.text = res.text;
-    chat.messages.push({ role: 'assistant', content: res.text, by: res.by });
+    chat.messages.push({ role: 'assistant', content: res.text, by: res.by, proposals: res.proposals?.length ? res.proposals : undefined });
     chat.updated = Date.now();
     persist(chat);
     if (isShown(run)) {
@@ -294,6 +332,8 @@ async function sendMessage(text) {
       addMeta(run.bubble, res.text, res);
       for (const m of res.memorySaved || []) addStep(run.bubble, `Gemerkt: ${m.text}`);
       for (const m of res.memoryForgotten || []) addStep(run.bubble, `Vergessen: ${m.text}`);
+      for (const p of res.proposals || []) addProposal(run.bubble, p);
+      if (res.proposals?.length) toast('Terminvorschlag: bitte bestätigen', 4000);
       if (state.settings.speak) speaker.finish();
     } else if (chat.id !== activeId) { chat.unread = true; toast(`Antwort fertig: ${chat.title}`); }
     if (res.memorySaved?.length || res.memoryForgotten?.length) { state = await jarvis.getState(); updateReadouts(); }
@@ -336,12 +376,18 @@ function paint(run, final = false) {
   applyBars(run.body);
   scrollDown();
 }
-jarvis.onDelta(({ reqId, text }) => {
+// Steuer-Tags (<merken>, <vergessen>, <termin>) nie anzeigen oder vorlesen – auch nicht halb angekommen
+const stripLive = (s) => s.replace(/<(merken|vergessen|termin)>[\s\S]*?<\/\1>/gi, '').replace(/<(merken|vergessen|termin)>[\s\S]*$/i, '')
+  .replace(/<(?:m(?:e(?:r(?:k(?:e(?:n)?)?)?)?)?|v(?:e(?:r(?:g(?:e(?:s(?:s(?:e(?:n)?)?)?)?)?)?)?)?|t(?:e(?:r(?:m(?:i(?:n)?)?)?)?)?)?$/i, '');
+jarvis.onDelta(({ reqId, text: raw }) => {
   const run = runByReq(reqId);
   if (!run) return;
-  run.text += text;
+  run.raw = (run.raw || '') + raw;
+  const vis = stripLive(run.raw);
+  const text = vis.startsWith(run.text) ? vis.slice(run.text.length) : '';
+  run.text = vis.startsWith(run.text) ? vis : run.text;
   if (!isShown(run)) return;
-  if (state.settings.speak) speaker.feed(text);
+  if (text && state.settings.speak) speaker.feed(text);
   if (!run.raf) run.raf = requestAnimationFrame(() => paint(run, false));
 });
 jarvis.onStatus((s) => {
@@ -642,6 +688,26 @@ $('importPack').onclick = async () => {
 $('packFolder').onclick = () => jarvis.openPackFolder();
 
 const MAIL_PRESETS = { webde: ['imap.web.de', 993], gmx: ['imap.gmx.net', 993], gmail: ['imap.gmail.com', 993], outlook: ['outlook.office365.com', 993], icloud: ['imap.mail.me.com', 993] };
+function renderGcal() {
+  const g = state.gcal || {};
+  if (!['gClientId', 'gSecret'].includes(document.activeElement?.id)) { $('gClientId').value = g.clientId || ''; }
+  $('gSecretNote').textContent = g.hasSecret ? 'Gespeichert (verschlüsselt). Leer lassen, um es zu behalten.' : 'Noch nichts gespeichert.';
+  const st = $('gStatus'); st.className = 'wake-status' + (g.connected ? ' ok' : '');
+  if (g.connected) st.textContent = 'Verbunden: Jarvis kann Termine vorschlagen. Eingetragen wird erst nach deiner Bestätigung.';
+  else if (!st.textContent || st.classList.contains('ok')) st.textContent = '';
+  $('gConnect').textContent = g.connected ? 'Neu verbinden' : 'Mit Google verbinden';
+  $('gDisconnect').classList.toggle('hidden', !g.connected);
+}
+$('gSave').onclick = async () => { state = await jarvis.setGcal({ clientId: $('gClientId').value, clientSecret: $('gSecret').value }); $('gSecret').value = ''; toast('Gespeichert'); renderAll(); };
+$('gConnect').onclick = async () => {
+  const st = $('gStatus'); st.className = 'wake-status'; st.textContent = 'Der Browser öffnet sich – melde dich bei Google an und erlaube den Zugriff …';
+  try {
+    state = await jarvis.setGcal({ clientId: $('gClientId').value, clientSecret: $('gSecret').value }); $('gSecret').value = '';
+    state = await jarvis.connectGcal();
+  } catch (err) { st.classList.add('err'); st.textContent = String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+  renderAll();
+};
+$('gDisconnect').onclick = async () => { if (confirm('Google-Verbindung trennen? Jarvis kann dann keine Termine mehr vorschlagen.')) { state = await jarvis.disconnectGcal(); $('gStatus').textContent = ''; renderAll(); } };
 function renderCal() {
   const c = state.cal || {};
   if (document.activeElement?.id === 'calUrl') return;
@@ -822,6 +888,7 @@ function renderAll() {
   renderRemote();
   renderMail();
   renderCal();
+  renderGcal();
   els.speakToggle.classList.toggle('off', !state.settings.speak);
   els.speakToggle.title = state.settings.speak ? 'Vorlesen: an' : 'Vorlesen: aus';
   updateReadouts();
