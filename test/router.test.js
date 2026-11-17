@@ -149,7 +149,7 @@ test('Modell-Liste filtert Nicht-Chat-Modelle', async () => {
   const p = getProvider('openai');
   const models = await listModels(p, 'k', f);
   assert.deepEqual(models.sort(), ['gpt-5', 'gpt-5-mini']);
-  assert.equal(pickDefaultModel(p, models), 'gpt-5');
+  assert.equal(pickDefaultModel(p, models), 'gpt-5-mini'); // Mini zuerst: Denkmodelle starten langsam
 });
 
 // ---------- Updates ----------

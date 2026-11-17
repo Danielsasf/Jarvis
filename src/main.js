@@ -8,6 +8,9 @@ const updater = require('./updater');
 const packsLib = require('./packs');
 const { Memory, stripTags } = require('./memory');
 const { WakeWord } = require('./wake');
+const accountsLib = require('./accounts');
+const speed = require('./speed');
+const { ChatStore } = require('./chats');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -34,6 +37,7 @@ const MEMORY_GUIDE = `Gedächtnis:
 
 let win;
 let memory;
+let chatStore;
 let wake;
 let packs = [];
 const userPackDir = () => path.join(app.getPath('userData'), 'pakete');
@@ -75,11 +79,9 @@ function loadCfg() {
 }
 let cfg = {};
 function normalize(c) {
-  c.providers ||= {};
-  c.order ||= [];
-  for (const p of PROVIDERS) if (!c.order.includes(p.id)) c.order.push(p.id);
-  c.order = c.order.filter((id) => PROVIDERS.some((p) => p.id === id));
-  c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1, ...(c.settings || {}) };
+  accountsLib.migrate(c);
+  c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
+    race: true, hedgeSec: 5, speedOrder: true, ...(c.settings || {}) };
   // alte Standard-Persönlichkeit aus V1 automatisch auf die neue (ohne Emojis) heben
   if (c.settings.systemPrompt.startsWith(OLD_DEFAULT_START)) c.settings.systemPrompt = DEFAULT_SYSTEM;
   return c;
@@ -117,22 +119,30 @@ function publicState() {
     memory: memory.list(),
     settings: cfg.settings,
     providers: cfg.order.map((id) => {
-      const p = getProvider(id);
-      const s = cfg.providers[id] || {};
+      const acc = cfg.accounts[id];
+      const t = accountsLib.typeOf(acc.type);
       return {
-        id, name: p.name, desc: p.desc, local: !!p.local, keyUrl: p.keyUrl, stt: !!p.stt,
-        connected: !!s.connected, enabled: s.enabled !== false, model: s.model || '', models: s.models || [],
+        id, type: acc.type, name: accountsLib.displayName(id, acc, t), desc: t.desc, local: !!t.local, custom: !!t.custom, base: acc.base || '',
+        keyUrl: t.keyUrl, stt: !!t.stt, connected: true, enabled: acc.enabled !== false, model: acc.model || '', models: acc.models || [],
+        ms: Number.isFinite(acc.ms) ? acc.ms : null,
       };
     }),
+    catalog: PROVIDERS.map((t) => ({ type: t.id, name: t.name, desc: t.desc, local: !!t.local, custom: !!t.custom, keyOptional: !!t.keyOptional, keyUrl: t.keyUrl })),
   };
 }
-const activeChain = () => cfg.order.filter((id) => cfg.providers[id]?.connected && cfg.providers[id]?.enabled !== false);
+const P = (id) => accountsLib.providerFor(id, cfg.accounts[id]);
+const activeChain = () => cfg.order.filter((id) => cfg.accounts[id] && cfg.accounts[id].enabled !== false);
+const orderedChain = () => (cfg.settings.speedOrder ? speed.sortBySpeed(activeChain(), (id) => cfg.accounts[id].ms) : activeChain());
+function recordSpeed(id, ms, ok = true) {
+  const acc = cfg.accounts[id];
+  if (acc) acc.ms = speed.record(acc.ms, ms, ok);
+}
 
 // Modellliste neu holen; ist das gewählte Modell weg (oder kaputt), automatisch das beste aktuelle nehmen
 async function refreshModels(id, { exclude = [] } = {}) {
-  const p = getProvider(id);
-  const s = cfg.providers[id];
-  if (!s?.connected) return false;
+  const s = cfg.accounts[id];
+  if (!s) return false;
+  const p = P(id);
   const models = await callWithRetry((signal) => listModels(p, decrypt(s.key), fetch, signal), { maxRetries: 1, timeoutMs: p.local ? 4000 : 15000 });
   s.models = models;
   const old = s.model;
@@ -149,26 +159,39 @@ async function refreshModels(id, { exclude = [] } = {}) {
 ipcMain.handle('state:get', () => publicState());
 ipcMain.handle('wake:get', () => wake?.state || { state: 'off' });
 
-ipcMain.handle('provider:connect', async (_e, id, key) => {
-  const p = getProvider(id);
-  key = (key || '').trim();
-  if (!p.local && !key) throw new Error('Bitte einen API-Schlüssel eingeben.');
-  const models = await callWithRetry((signal) => listModels(p, key, fetch, signal), { maxRetries: 1, timeoutMs: p.local ? 4000 : 20000 });
-  const prev = cfg.providers[id] || {};
-  cfg.providers[id] = { ...prev, connected: true, enabled: true, key: encrypt(key), models,
-    model: models.includes(prev.model) ? prev.model : pickDefaultModel(p, models) };
+ipcMain.handle('account:add', async (_e, { type, key, label, base } = {}) => {
+  const t = accountsLib.typeOf(type);
+  if (!t) throw new Error('Unbekannter Anbieter.');
+  key = String(key || '').trim();
+  if (!t.local && !t.keyOptional && !key) throw new Error('Bitte einen API-Schlüssel eingeben.');
+  const acc = { type, label: String(label || '').trim().slice(0, 40), enabled: true, connected: true, key: encrypt(key), models: [], model: '' };
+  if (t.custom) acc.base = accountsLib.cleanBase(base);
+  const id = accountsLib.newId(cfg.accounts, type);
+  const p = accountsLib.providerFor(id, acc);
+  const models = await callWithRetry((signal) => listModels(p, key, fetch, signal), { maxRetries: 1, timeoutMs: t.local ? 4000 : 20000 });
+  acc.models = models;
+  acc.model = pickDefaultModel(p, models);
+  cfg.accounts[id] = acc;
+  cfg.order.push(id);
   saveCfg();
   log(`[${p.name}] verbunden (${models.length} Modelle)`);
   return publicState();
 });
 
-ipcMain.handle('provider:disconnect', (_e, id) => { delete cfg.providers[id]; saveCfg(); return publicState(); });
+ipcMain.handle('provider:disconnect', (_e, id) => {
+  delete cfg.accounts[id];
+  cfg.order = cfg.order.filter((x) => x !== id);
+  saveCfg();
+  return publicState();
+});
 
 ipcMain.handle('provider:update', (_e, id, patch) => {
-  const s = cfg.providers[id];
+  const s = cfg.accounts[id];
   if (!s) return publicState();
   if (typeof patch.model === 'string' && s.models.includes(patch.model)) s.model = patch.model;
   if (typeof patch.enabled === 'boolean') s.enabled = patch.enabled;
+  if (typeof patch.label === 'string') s.label = patch.label.trim().slice(0, 40);
+  if (patch.resetSpeed) delete s.ms;
   saveCfg();
   return publicState();
 });
@@ -188,6 +211,9 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (['low', 'mid', 'high'].includes(patch.wakeSens)) s.wakeSens = patch.wakeSens;
   if (typeof patch.wakeWord === 'boolean') s.wakeWord = patch.wakeWord;
   if ('wakeWord' in patch || 'wakeSens' in patch) wake?.set(s.wakeWord, s.wakeSens);
+  if (typeof patch.race === 'boolean') s.race = patch.race;
+  if (typeof patch.speedOrder === 'boolean') s.speedOrder = patch.speedOrder;
+  if (Number.isFinite(patch.hedgeSec)) s.hedgeSec = Math.min(30, Math.max(0, Math.round(patch.hedgeSec)));
   if (Number.isFinite(patch.timeoutSec)) s.timeoutSec = Math.min(300, Math.max(10, patch.timeoutSec));
   if (patch.resetPrompt) s.systemPrompt = DEFAULT_SYSTEM;
   saveCfg();
@@ -195,10 +221,11 @@ ipcMain.handle('settings:set', (_e, patch) => {
 });
 
 ipcMain.handle('local:detect', async () => {
-  await Promise.all(PROVIDERS.filter((x) => x.local && !cfg.providers[x.id]?.connected).map(async (p) => {
+  await Promise.all(PROVIDERS.filter((x) => x.local && !Object.values(cfg.accounts).some((a) => a.type === x.id)).map(async (p) => {
     try {
       const models = await callWithRetry((signal) => listModels(p, '', fetch, signal), { maxRetries: 0, timeoutMs: 2500 });
-      cfg.providers[p.id] = { connected: true, enabled: true, key: '', models, model: pickDefaultModel(p, models) };
+      cfg.accounts[p.id] = { type: p.id, label: '', connected: true, enabled: true, key: '', models, model: pickDefaultModel(p, models) };
+      if (!cfg.order.includes(p.id)) cfg.order.push(p.id);
       log(`[${p.name}] automatisch gefunden`);
     } catch { /* läuft nicht */ }
   }));
@@ -228,19 +255,23 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
   const userAbort = new AbortController();
   running.set(reqId, userAbort);
 
-  const chain = activeChain().map((id) => {
-    const p = getProvider(id);
-    const s = cfg.providers[id];
+  const chain = orderedChain().map((id) => {
+    const p = P(id);
+    const s = cfg.accounts[id];
     const tried = [];
     return {
       id,
       get label() { return `${p.name} · ${s.model}`; },
-      run: (signal, beat) => {
+      run: (signal, beat, ctx) => {
         const both = AbortSignal.any([signal, userAbort.signal]);
+        const startedAt = Date.now();
+        let seen = false;
         emit('chat:status', { reqId, phase: 'asking', provider: p.name, model: s.model });
         return chatStream(p, decrypt(s.key), s.model, clean, system, {
           signal: both, beat,
           onDelta: (text) => {
+            if (!seen) { seen = true; recordSpeed(id, Date.now() - startedAt, true); }
+            if (ctx && !ctx.claim()) return; // eine andere KI war schneller
             if (!firstAt) { firstAt = Date.now(); emit('chat:status', { reqId, phase: 'streaming', provider: p.name, model: s.model, firstMs: firstAt - t0 }); }
             emit('chat:delta', { reqId, text });
           },
@@ -249,17 +280,25 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
       repair: async () => { tried.push(s.model); return refreshModels(id, { exclude: tried }); },
     };
   });
+  const byId = (id) => P(id).name;
 
   try {
     const result = await runWithFallback(chain, {
       log, timeoutMs: cfg.settings.timeoutSec * 1000, maxRetries: 2,
-      onSwitch: (step, failed) => emit('chat:status', { reqId, phase: 'switch', provider: step.label.split(' · ')[0], failed: failed.label.split(' · ')[0] }),
+      parallel: cfg.settings.race ? 2 : 1,
+      hedgeMs: cfg.settings.hedgeSec * 1000,
+      onSwitch: (step, failed) => emit('chat:status', { reqId, phase: 'switch', provider: byId(step.id), failed: byId(failed.id) }),
+      onLaunch: (step, reason) => { if (reason === 'slow') emit('chat:status', { reqId, phase: 'slow', provider: byId(step.id) }); },
     });
+    for (const f of result.failures) recordSpeed(f.id, f.ms, false);
+    for (const l of result.losers) if (cfg.accounts[l.id] && l.ms >= 1000 && !(cfg.accounts[l.id].ms >= l.ms)) recordSpeed(l.id, l.ms, true); // abgebrochen: mindestens so langsam
+    saveCfg();
     const mem = memory.apply(result.text);
     if (mem.saved.length || mem.forgotten.length) emit('jarvis:state', publicState());
     return { text: stripTags(result.text).trim(), memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
   } catch (err) {
     if (userAbort.signal.aborted) return { stopped: true };
+    for (const f of err.failures || []) recordSpeed(f.id, f.ms, false);
     throw err;
   } finally {
     running.delete(reqId);
@@ -268,11 +307,11 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
 ipcMain.handle('chat:stop', (_e, reqId) => { running.get(reqId)?.abort(); });
 
 ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
-  const candidates = activeChain().filter((id) => getProvider(id).stt);
+  const candidates = activeChain().filter((id) => P(id).stt);
   if (!candidates.length) throw new Error('Für Spracheingabe bitte ChatGPT, Groq oder Gemini verbinden.');
   const chain = candidates.map((id) => {
-    const p = getProvider(id);
-    const s = cfg.providers[id];
+    const p = P(id);
+    const s = cfg.accounts[id];
     return { id, label: `${p.name} (Sprache)`, run: (signal) => transcribe(p, decrypt(s.key), s.model, Buffer.from(audio), mime, signal),
       repair: async () => refreshModels(id, { exclude: [s.model] }) };
   });
@@ -283,6 +322,11 @@ ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
 ipcMain.handle('open:external', (_e, url) => {
   if (PROVIDERS.some((p) => p.keyUrl === url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
 });
+
+// ---------- Chats ----------
+ipcMain.handle('chats:all', () => chatStore.all());
+ipcMain.handle('chats:save', (_e, chat) => { chatStore.upsert(chat); return true; });
+ipcMain.handle('chats:delete', (_e, id) => { chatStore.remove(String(id)); return true; });
 
 // ---------- Pakete ----------
 ipcMain.handle('packs:toggle', (_e, id, on) => { cfg.packs ||= {}; cfg.packs[id] = !!on; saveCfg(); return publicState(); });
@@ -364,7 +408,7 @@ function createWindow() {
     BOOT.markHealthy();
     // im Hintergrund: Modelllisten auffrischen und nach Updates schauen
     setTimeout(async () => {
-      for (const id of activeChain()) if (!getProvider(id).local) refreshModels(id).catch(() => {});
+      for (const id of activeChain()) if (!P(id).local) refreshModels(id).catch(() => {});
       if (cfg.settings.autoUpdate) checkUpdate(false);
       if (cfg.settings.wakeWord) wake.set(true, cfg.settings.wakeSens);
     }, 1500);
@@ -374,6 +418,7 @@ function createWindow() {
 app.whenReady().then(() => {
   cfg = normalize(loadCfg());
   saveCfg();
+  chatStore = new ChatStore(path.join(app.getPath('userData'), 'chats.json'));
   memory = new Memory(path.join(app.getPath('userData'), 'gedaechtnis.json'));
   wake = new WakeWord({
     dir: app.getPath('userData'), log,

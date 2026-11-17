@@ -1,8 +1,8 @@
 /* global jarvis, HUD, JarvisSpeech, JarvisRender */
 const $ = (id) => document.getElementById(id);
 const els = {
-  statusEl: $('status'), statusText: $('statusText'), welcome: $('welcome'), welcomeHint: $('welcomeHint'), welcomeConnect: $('welcomeConnect'),
-  chips: $('chips'), messages: $('messages'), chat: $('chat'), input: $('input'), send: $('send'), mic: $('mic'),
+  chatList: $('chatList'), sidePacks: $('sidePacks'), statusEl: $('status'), statusText: $('statusText'), welcome: $('welcome'), welcomeHint: $('welcomeHint'), welcomeConnect: $('welcomeConnect'),
+  messages: $('messages'), chat: $('chat'), input: $('input'), send: $('send'), mic: $('mic'),
   speakToggle: $('speakToggle'), newChat: $('newChat'), settings: $('settings'), scrim: $('scrim'), providerList: $('providerList'),
   systemPrompt: $('systemPrompt'), log: $('log'), toast: $('toast'), roLink: $('roLink'), roSpeed: $('roSpeed'), roCount: $('roCount'),
   roClock: $('roClock'), roMemory: $('roMemory'), suggest: $('suggest'), packList: $('packList'), memList: $('memList'), version: $('version'), updateBanner: $('updateBanner'), updateVersion: $('updateVersion'), updateInstall: $('updateInstall'),
@@ -11,9 +11,11 @@ const els = {
 
 const hud = HUD.create($('core'));
 let state = null;
-let history = [];
-let current = null; // laufende Anfrage
-const openForms = new Set();
+let chats = [];            // alle Chats (nur Chats mit Nachrichten werden gespeichert)
+let activeId = null;
+const runs = new Map();    // chatId -> laufende Anfrage (mehrere Chats können gleichzeitig arbeiten)
+const activeChat = () => chats.find((c) => c.id === activeId);
+const activeRun = () => runs.get(activeId);
 
 // ---------- Hilfen ----------
 const { render: renderMarkdown, esc: escapeHtml } = JarvisRender;
@@ -31,7 +33,7 @@ function setMode(mode, label) {
   els.statusText.textContent = label || MODE_LABEL[mode];
 }
 function settle() {
-  if (current) setMode('thinking');
+  if (runs.size) setMode('thinking');
   else if (recording) setMode('listening');
   else if (speaker.speaking) setMode('speaking');
   else setMode('idle');
@@ -45,6 +47,7 @@ function updateReadouts() {
   els.roCount.textContent = String(connectedCount()).padStart(2, '0');
   const n = state.memory?.length || 0;
   els.roMemory.textContent = n === 1 ? '1 Eintrag' : `${n} Einträge`;
+  $('sideMemCount').textContent = String(n);
   els.version.textContent = `v${state.version}`;
   els.updateInfo.textContent = `Installiert: Version ${state.version}`;
   els.autoUpdate.checked = state.settings.autoUpdate !== false;
@@ -52,13 +55,12 @@ function updateReadouts() {
 function updateWelcome() {
   const none = connectedCount() === 0;
   els.welcomeConnect.classList.toggle('hidden', !none);
-  els.chips.classList.toggle('hidden', none);
   els.welcomeHint.textContent = none
-    ? 'Verbinde zuerst mindestens eine KI in den Systemeinstellungen.'
+    ? 'Verbinde zuerst mindestens eine KI in den Einstellungen.'
     : (state.settings.wakeWord ? 'Sag „Hey Jarvis“, schreib eine Nachricht oder tipp / für Pakete.' : 'Schreib eine Nachricht, halte die Leertaste zum Sprechen oder tipp / für Pakete.');
-  els.welcome.classList.toggle('hidden', history.length > 0);
-  document.body.classList.toggle('chatting', history.length > 0);
-  els.chips.innerHTML = activePacks().map((p) => `<button class="chip" data-cmd="${escapeHtml(p.befehl)}" title="${escapeHtml(p.beschreibung)}"><span class="sym">${escapeHtml(p.symbol || '◇')}</span>${escapeHtml(p.name)}</button>`).join('');
+  const empty = !(activeChat()?.messages.length) && !activeRun();
+  els.welcome.classList.toggle('hidden', !empty);
+  document.body.classList.toggle('chatting', !empty);
 }
 const activePacks = () => (state.packs || []).filter((p) => p.enabled && !p.error);
 setInterval(() => { els.roClock.textContent = new Date().toLocaleTimeString('de-DE'); }, 1000);
@@ -101,15 +103,17 @@ function addStep(bubble, text, warn = false) {
 function addMeta(bubble, text, res) {
   const m = document.createElement('div');
   m.className = 'meta';
-  const by = document.createElement('span');
-  by.textContent = res.by;
-  m.appendChild(by);
-  if (res.totalMs) {
+  if (res?.by) {
+    const by = document.createElement('span');
+    by.textContent = res.by;
+    m.appendChild(by);
+  }
+  if (res?.totalMs && res.firstMs != null) {
     const t = document.createElement('span');
     t.textContent = `${(res.firstMs / 1000).toFixed(1)} s bis zum ersten Wort`;
     m.appendChild(t);
   }
-  if (res.fallbacks?.length) {
+  if (res?.fallbacks?.length) {
     const fb = document.createElement('span');
     fb.className = 'fb';
     fb.textContent = `↪ übernommen (${res.fallbacks.map((f) => f.label.split(' · ')[0]).join(', ')} ausgefallen)`;
@@ -126,84 +130,212 @@ function addMeta(bubble, text, res) {
   bubble.appendChild(m);
 }
 
+// ---- Chats verwalten ----
+const newId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const titleFrom = (text) => { const t = text.replace(/^\/[\wäöüß-]+\s*/i, '').replace(/\s+/g, ' ').trim() || text.trim(); return t.length > 42 ? `${t.slice(0, 40)}…` : t; };
+function sortChats() { chats.sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
+function persist(chat) {
+  if (!chat.messages.length) return;
+  jarvis.saveChat({ id: chat.id, title: chat.title, created: chat.created, updated: chat.updated, messages: chat.messages }).catch(() => {});
+}
+function openNewChat() {
+  const cur = activeChat();
+  if (cur && !cur.messages.length && !runs.has(cur.id)) { els.input.focus(); return cur; }
+  const c = { id: newId(), title: 'Neuer Chat', created: Date.now(), updated: Date.now(), messages: [] };
+  chats.unshift(c);
+  switchChat(c.id);
+  return c;
+}
+function switchChat(id) {
+  if (id === activeId || !chats.some((c) => c.id === id)) return;
+  const prev = activeChat();
+  stopSpeaking();
+  activeId = id;
+  if (prev && !prev.messages.length && !runs.has(prev.id)) chats = chats.filter((c) => c !== prev);
+  const c = activeChat();
+  c.unread = false;
+  renderMessages(c);
+  renderChatList(); updateWelcome(); updateSendButton(); settle();
+  els.input.focus();
+}
+function renderMessages(chat) {
+  els.messages.innerHTML = '';
+  for (const m of chat.messages) {
+    const b = makeBubble(m.role, m.content);
+    if (m.role === 'assistant') addMeta(b, m.content, { by: m.by });
+  }
+  const run = runs.get(chat.id);
+  if (run) {
+    run.bubble = makeBubble('assistant');
+    run.body = run.bubble.querySelector('.body');
+    paint(run);
+  }
+  scrollDown(true);
+}
+function deleteChat(id) {
+  const run = runs.get(id);
+  if (run) jarvis.stop(run.reqId);
+  chats = chats.filter((c) => c.id !== id);
+  jarvis.deleteChat(id).catch(() => {});
+  if (activeId === id) {
+    activeId = null;
+    const next = chats[0];
+    if (next) switchChat(next.id); else { const c = { id: newId(), title: 'Neuer Chat', created: Date.now(), updated: Date.now(), messages: [] }; chats.unshift(c); activeId = c.id; els.messages.innerHTML = ''; }
+  }
+  renderChatList(); updateWelcome(); updateSendButton(); settle();
+}
+function dayLabel(ts) {
+  const d = new Date(ts); const now = new Date();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff <= 0) return 'Heute';
+  if (diff === 1) return 'Gestern';
+  if (diff < 7) return 'Diese Woche';
+  if (diff < 31) return 'Dieser Monat';
+  return 'Älter';
+}
+function renderChatList() {
+  const box = els.chatList;
+  box.innerHTML = '';
+  sortChats();
+  let lastGroup = '';
+  for (const c of chats) {
+    const group = c.messages.length ? dayLabel(c.updated) : 'Jetzt';
+    if (group !== lastGroup) { const g = document.createElement('div'); g.className = 'chat-group'; g.textContent = group; box.appendChild(g); lastGroup = group; }
+    const row = document.createElement('div');
+    row.className = `chat-item${c.id === activeId ? ' on' : ''}`;
+    row.title = c.title;
+    const running = runs.has(c.id);
+    row.innerHTML = `<span class="t">${escapeHtml(c.title)}</span>${running ? '<i class="dot run" title="Antwortet gerade"></i>' : (c.unread ? '<i class="dot" title="Neue Antwort"></i>' : '')}<button class="x" title="Chat löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.x')) { if (!c.messages.length || confirm(`Chat „${c.title}“ löschen?`)) deleteChat(c.id); return; }
+      if (e.target.tagName === 'INPUT') return;
+      switchChat(c.id);
+    });
+    row.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.x') || !c.messages.length) return;
+      const t = row.querySelector('.t');
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.value = c.title; inp.maxLength = 80;
+      t.replaceWith(inp); inp.focus(); inp.select();
+      const done = (save) => { if (save && inp.value.trim()) { c.title = inp.value.trim(); persist(c); } renderChatList(); };
+      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); });
+      inp.addEventListener('blur', () => done(true));
+    });
+    box.appendChild(row);
+  }
+}
+function renderSidePacks() {
+  els.sidePacks.innerHTML = activePacks().map((p) => `<button class="side-pack" data-cmd="${escapeHtml(p.befehl)}" title="${escapeHtml(p.beschreibung)}"><span class="sym">${escapeHtml(p.symbol || '◇')}</span>${escapeHtml(p.name)}<code>${escapeHtml(p.befehl)}</code></button>`).join('')
+    || '<p class="muted" style="padding:4px 8px;font-size:12px">Keine Pakete aktiv.</p>';
+}
+function updateSendButton() {
+  const busy = runs.has(activeId);
+  els.send.classList.toggle('stop', busy);
+  els.send.title = busy ? 'Stoppen' : 'Senden';
+}
+
+const isShown = (run) => run.chatId === activeId && run.body?.isConnected;
+const runByReq = (reqId) => [...runs.values()].find((r) => r.reqId === reqId);
+
 async function sendMessage(text) {
   text = (text ?? els.input.value).trim();
   if (!text) return;
-  if (current) return;
+  const chat = activeChat() || openNewChat();
+  if (runs.has(chat.id)) return;
   if (connectedCount() === 0) { openSettings(); toast('Verbinde zuerst eine KI.'); return; }
   stopSpeaking();
   els.input.value = '';
   autoGrow();
-  history.push({ role: 'user', content: text });
-  updateWelcome();
+  chat.messages.push({ role: 'user', content: text });
+  if (chat.messages.length === 1) chat.title = titleFrom(text);
+  chat.updated = Date.now();
+  persist(chat);
   makeBubble('user', text);
 
-  const reqId = `r${Date.now()}`;
+  const reqId = `r${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
   const bubble = makeBubble('assistant');
   const body = bubble.querySelector('.body');
   body.innerHTML = '<span class="cursor"></span>';
-  current = { reqId, bubble, body, text: '', raf: 0, stopped: false };
-  els.send.classList.add('stop');
-  els.send.title = 'Stoppen';
+  const run = { reqId, chatId: chat.id, bubble, body, text: '', raf: 0 };
+  runs.set(chat.id, run);
+  updateWelcome(); renderChatList(); updateSendButton();
   setMode('thinking');
 
   try {
-    const res = await jarvis.send(reqId, history);
+    const res = await jarvis.send(reqId, chat.messages.map(({ role, content }) => ({ role, content })));
     if (res.stopped) throw Object.assign(new Error('gestoppt'), { stopped: true });
-    current.text = res.text;
-    paint(true);
-    history.push({ role: 'assistant', content: res.text });
-    addMeta(bubble, res.text, res);
-    for (const m of res.memorySaved || []) addStep(bubble, `Gemerkt: ${m.text}`);
-    for (const m of res.memoryForgotten || []) addStep(bubble, `Vergessen: ${m.text}`);
-    if (res.memorySaved?.length || res.memoryForgotten?.length) state = await jarvis.getState(), updateReadouts();
+    run.text = res.text;
+    chat.messages.push({ role: 'assistant', content: res.text, by: res.by });
+    chat.updated = Date.now();
+    persist(chat);
+    if (isShown(run)) {
+      paint(run, true);
+      addMeta(run.bubble, res.text, res);
+      for (const m of res.memorySaved || []) addStep(run.bubble, `Gemerkt: ${m.text}`);
+      for (const m of res.memoryForgotten || []) addStep(run.bubble, `Vergessen: ${m.text}`);
+      if (state.settings.speak) speaker.finish();
+    } else if (chat.id !== activeId) { chat.unread = true; toast(`Antwort fertig: ${chat.title}`); }
+    if (res.memorySaved?.length || res.memoryForgotten?.length) { state = await jarvis.getState(); updateReadouts(); }
     if (res.firstMs != null) els.roSpeed.textContent = `${(res.firstMs / 1000).toFixed(2)} s`;
-    if (state.settings.speak) speaker.finish();
   } catch (err) {
-    const partial = current?.text;
+    const partial = run.text;
     if (partial) {
       // abgebrochen, aber schon Text da: behalten
-      paint(true);
-      history.push({ role: 'assistant', content: partial });
-      addStep(bubble, err.stopped ? 'Gestoppt.' : `Abgebrochen: ${err.message}`, true);
-      if (state.settings.speak && !err.stopped) speaker.finish();
+      chat.messages.push({ role: 'assistant', content: partial });
+      chat.updated = Date.now();
+      persist(chat);
+      if (isShown(run)) {
+        paint(run, true);
+        addStep(run.bubble, err.stopped ? 'Gestoppt.' : `Abgebrochen: ${err.message}`, true);
+        if (state.settings.speak && !err.stopped) speaker.finish();
+      }
     } else {
-      bubble.remove();
-      history.pop();
-      if (!err.stopped) { makeBubble('error', err.message); setMode('error'); setTimeout(settle, 1500); }
+      if (isShown(run)) run.bubble.remove();
+      const last = chat.messages[chat.messages.length - 1];
+      if (last?.role === 'user') chat.messages.pop();
+      persist(chat);
+      if (!err.stopped) {
+        if (isShown(run)) { makeBubble('error', err.message); setMode('error'); setTimeout(settle, 1500); }
+        else toast(`Chat „${chat.title}“: ${err.message}`, 6000);
+      }
     }
   } finally {
-    cancelAnimationFrame(current?.raf);
-    current = null;
-    els.send.classList.remove('stop');
-    els.send.title = 'Senden';
+    cancelAnimationFrame(run.raf);
+    runs.delete(chat.id);
+    updateWelcome(); renderChatList(); updateSendButton();
     settle();
-    els.input.focus();
+    if (chat.id === activeId) els.input.focus();
   }
 }
 
-function paint(final = false) {
-  if (!current) return;
-  current.raf = 0;
-  current.body.innerHTML = renderMarkdown(current.text, !final) + (final ? '' : '<span class="cursor"></span>');
-  applyBars(current.body);
+function paint(run, final = false) {
+  run.raf = 0;
+  if (!isShown(run)) return;
+  run.body.innerHTML = renderMarkdown(run.text, !final) + (final ? '' : '<span class="cursor"></span>');
+  applyBars(run.body);
   scrollDown();
 }
 jarvis.onDelta(({ reqId, text }) => {
-  if (!current || current.reqId !== reqId) return;
-  current.text += text;
+  const run = runByReq(reqId);
+  if (!run) return;
+  run.text += text;
+  if (!isShown(run)) return;
   if (state.settings.speak) speaker.feed(text);
-  if (!current.raf) current.raf = requestAnimationFrame(() => paint(false));
+  if (!run.raf) run.raf = requestAnimationFrame(() => paint(run, false));
 });
 jarvis.onStatus((s) => {
-  if (!current || current.reqId !== s.reqId) return;
-  if (s.phase === 'asking') addStep(current.bubble, `Frage ${s.provider.split(' (')[0]} (${s.model}) …`);
-  if (s.phase === 'switch') addStep(current.bubble, `${s.failed.split(' (')[0]} ausgefallen – wechsle zu ${s.provider.split(' (')[0]}`, true);
-  if (s.phase === 'pack') addStep(current.bubble, `Paket „${s.pack}“ aktiv`);
-  if (s.phase === 'streaming') {
-    current.bubble.querySelectorAll('.steps > div:not(.keep)').forEach((d) => { if (!/^› Paket/.test(d.textContent)) d.remove(); });
-    els.roSpeed.textContent = `${(s.firstMs / 1000).toFixed(2)} s`;
-  }
+  const run = runByReq(s.reqId);
+  if (!run) return;
+  const shown = isShown(run);
+  const short = (n) => String(n).split(' (')[0];
+  if (s.phase === 'streaming') els.roSpeed.textContent = `${(s.firstMs / 1000).toFixed(2)} s`;
+  if (!shown) return;
+  if (s.phase === 'asking') addStep(run.bubble, `Frage ${short(s.provider)} (${s.model}) …`);
+  if (s.phase === 'slow') addStep(run.bubble, `Noch keine Antwort – frage zusätzlich ${short(s.provider)}`, true);
+  if (s.phase === 'switch') addStep(run.bubble, `${short(s.failed)} ausgefallen – wechsle zu ${short(s.provider)}`, true);
+  if (s.phase === 'pack') addStep(run.bubble, `Paket „${s.pack}“ aktiv`);
+  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› Paket/.test(d.textContent)) d.remove(); });
 });
 
 function autoGrow() {
@@ -216,7 +348,7 @@ let recorder = null; let recording = false; let chunks = []; let micStream = nul
 
 // auto = durch "Hey Jarvis" gestartet: stoppt selbst, wenn du fertig gesprochen hast
 async function startRecording({ auto = false } = {}) {
-  if (recording || current) return;
+  if (recording || runs.has(activeId)) return;
   if (!state.providers.some((p) => p.stt && p.connected && p.enabled)) {
     toast('Für Spracheingabe bitte ChatGPT, Groq oder Gemini verbinden.', 4500);
     return;
@@ -306,7 +438,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape') {
     if (els.settings.classList.contains('open')) closeSettings();
-    else if (current) jarvis.stop(current.reqId);
+    else if (activeRun()) jarvis.stop(activeRun().reqId);
     else stopSpeaking();
   }
 });
@@ -324,6 +456,7 @@ function openSettings(tab = 'kis') {
   els.scrim.classList.add('open');
   els.settings.setAttribute('aria-hidden', 'false');
   els.systemPrompt.value = state.settings.systemPrompt;
+  jarvis.getState().then((st) => { if (els.settings.classList.contains('open') && !document.activeElement?.closest?.('#addForm')) { state = st; renderAll(); } }).catch(() => {});
 }
 function closeSettings() {
   els.settings.classList.remove('open');
@@ -335,12 +468,15 @@ const icon = {
   down: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
 };
 
+let addType = null; // Anbieter, für den gerade das Formular offen ist
+const fmtMs = (ms) => (ms == null ? 'noch nicht gemessen' : `Ø ${(ms / 1000).toFixed(1).replace('.', ',')} s`);
+
 function renderProviders() {
   els.providerList.innerHTML = '';
+  if (!state.providers.length) els.providerList.innerHTML = '<p class="muted">Noch keine KI verbunden. Wähle unten einen Anbieter.</p>';
   state.providers.forEach((p, i) => {
     const card = document.createElement('div');
-    card.className = `prov${p.connected && p.enabled ? ' on' : ''}`;
-    const badge = p.connected ? (p.enabled ? '<span class="badge ok">Aktiv</span>' : '<span class="badge">Pausiert</span>') : '<span class="badge">Nicht verbunden</span>';
+    card.className = `prov${p.enabled ? ' on' : ''}`;
     card.innerHTML = `
       <div class="prov-top">
         <div class="prov-order">
@@ -348,36 +484,21 @@ function renderProviders() {
           <button data-act="down" title="Nach unten" ${i === state.providers.length - 1 ? 'disabled' : ''}>${icon.down}</button>
         </div>
         <div class="prov-name"><b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.desc)}</small></div>
-        ${badge}
+        <span class="speed" title="So schnell kam bisher das erste Wort">${fmtMs(p.ms)}</span>
+        <span class="badge ${p.enabled ? 'ok' : ''}">${p.enabled ? 'Aktiv' : 'Pausiert'}</span>
       </div>
-      <div class="prov-body"></div>`;
-    const body = card.querySelector('.prov-body');
-
-    if (p.connected) {
-      body.innerHTML = `
+      <div class="prov-body">
         <div class="row">
           <select title="Modell">${p.models.map((m) => `<option ${m === p.model ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}</select>
           <label class="switch" title="Aktiv"><input type="checkbox" ${p.enabled ? 'checked' : ''}><span></span></label>
         </div>
-        <div class="row end"><button class="danger" data-act="disconnect">Trennen</button></div>`;
-      body.querySelector('select').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { model: e.target.value }); updateReadouts(); toast(`${p.name}: ${e.target.value}`); };
-      body.querySelector('input[type=checkbox]').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { enabled: e.target.checked }); renderAll(); };
-    } else if (openForms.has(p.id)) {
-      body.innerHTML = p.local
-        ? `<p class="muted flush">Starte ${escapeHtml(p.name.replace(' (lokal)', ''))} auf deinem PC und lade mindestens ein Modell. Dann auf „Verbinden“ klicken.</p>
-           <div class="row end"><button class="link" data-act="key">Herunterladen</button><button class="primary" data-act="connect">Verbinden</button></div>`
-        : `<div class="row"><input type="password" placeholder="API-Schlüssel einfügen" autocomplete="off" spellcheck="false"><button class="primary" data-act="connect">Verbinden</button></div>
-           <div class="row"><button class="link" data-act="key">Schlüssel holen →</button></div>`;
-      const inp = body.querySelector('input');
-      inp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') body.querySelector('[data-act=connect]').click(); });
-      setTimeout(() => inp?.focus(), 0);
-    } else {
-      body.innerHTML = '<div class="row end"><button class="ghost" data-act="open">Verbinden</button></div>';
-    }
-
+        <div class="row end"><button class="danger" data-act="disconnect">Trennen</button></div>
+      </div>`;
+    const body = card.querySelector('.prov-body');
+    body.querySelector('select').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { model: e.target.value }); updateReadouts(); toast(`${p.name}: ${e.target.value}`); };
+    body.querySelector('input[type=checkbox]').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { enabled: e.target.checked }); renderAll(); };
     card.addEventListener('click', async (e) => {
-      const btn = e.target.closest('button');
-      const act = btn?.dataset.act;
+      const act = e.target.closest('button')?.dataset.act;
       if (!act) return;
       const order = state.providers.map((x) => x.id);
       if (act === 'up' || act === 'down') {
@@ -385,26 +506,62 @@ function renderProviders() {
         [order[i], order[j]] = [order[j], order[i]];
         state = await jarvis.setOrder(order);
         renderAll();
-      } else if (act === 'open') { openForms.add(p.id); renderProviders(); }
-      else if (act === 'key') { jarvis.openExternal(p.keyUrl); }
-      else if (act === 'disconnect') { state = await jarvis.disconnect(p.id); renderAll(); }
-      else if (act === 'connect') {
-        const key = body.querySelector('input')?.value || '';
-        btn.disabled = true; btn.textContent = 'Prüfe …';
-        try {
-          state = await jarvis.connect(p.id, key);
-          openForms.delete(p.id);
-          toast(`${p.name} verbunden ✓`);
-          renderAll();
-        } catch (err) {
-          btn.disabled = false; btn.textContent = 'Verbinden';
-          toast(`${p.name}: ${err.message}`, 6000);
-        }
-      }
+      } else if (act === 'disconnect' && confirm(`${p.name} wirklich trennen?`)) { state = await jarvis.disconnect(p.id); renderAll(); }
     });
     els.providerList.appendChild(card);
   });
+  renderCatalog();
+  renderTempo();
 }
+
+function renderCatalog() {
+  const box = $('catalog');
+  box.innerHTML = (state.catalog || []).map((t) => `<button data-type="${t.type}" class="${addType === t.type ? 'on' : ''}" title="${escapeHtml(t.desc)}">+ ${escapeHtml(t.name)}</button>`).join('');
+  const form = $('addForm');
+  const t = (state.catalog || []).find((x) => x.type === addType);
+  form.classList.toggle('hidden', !t);
+  if ((t?.type || '') === (form.dataset.type || '')) return; // Formular nicht neu bauen, solange du tippst
+  form.dataset.type = t?.type || '';
+  if (!t) { form.innerHTML = ''; return; }
+  form.innerHTML = `<b>${escapeHtml(t.name)} hinzufügen</b><p class="muted flush">${escapeHtml(t.desc)}</p>
+    ${t.custom ? '<div class="row"><input type="text" id="afLabel" placeholder="Name (z. B. Mein Server)" maxlength="40"></div><div class="row"><input type="text" id="afBase" placeholder="Adresse, z. B. https://api.beispiel.de/v1" spellcheck="false"></div>' : ''}
+    ${t.local ? `<p class="muted flush">Starte ${escapeHtml(t.name.replace(' (lokal)', ''))} auf deinem PC und lade mindestens ein Modell.</p>`
+      : `<div class="row"><input type="password" id="afKey" placeholder="API-Schlüssel einfügen${t.keyOptional ? ' (optional)' : ''}" autocomplete="off" spellcheck="false"></div>`}
+    <div class="row end"><button class="link" data-act="key">${t.local ? 'Herunterladen' : 'Schlüssel holen →'}</button><button class="ghost" data-act="cancel">Abbrechen</button><button class="primary" data-act="connect">Verbinden</button></div>`;
+  form.querySelector('#afKey')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') form.querySelector('[data-act=connect]').click(); });
+  setTimeout(() => form.querySelector('input')?.focus(), 0);
+}
+$('catalog').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { addType = addType === b.dataset.type ? null : b.dataset.type; renderCatalog(); } });
+$('addForm').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  const act = btn?.dataset.act;
+  const t = (state.catalog || []).find((x) => x.type === addType);
+  if (!act || !t) return;
+  if (act === 'cancel') { addType = null; renderCatalog(); }
+  if (act === 'key') jarvis.openExternal(t.keyUrl);
+  if (act === 'connect') {
+    btn.disabled = true; btn.textContent = 'Prüfe …';
+    try {
+      state = await jarvis.addAccount({ type: t.type, key: $('afKey')?.value || '', label: $('afLabel')?.value || '', base: $('afBase')?.value || '' });
+      addType = null;
+      toast(`${t.name} verbunden ✓`);
+      renderAll();
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'Verbinden';
+      toast(`${t.name}: ${err.message}`, 6000);
+    }
+  }
+});
+
+function renderTempo() {
+  const st = state.settings;
+  $('raceToggle').checked = st.race !== false;
+  $('hedgeSel').value = String(st.hedgeSec ?? 5);
+  $('speedToggle').checked = st.speedOrder !== false;
+}
+$('raceToggle').onchange = async (e) => { state = await jarvis.setSettings({ race: e.target.checked }); };
+$('hedgeSel').onchange = async (e) => { state = await jarvis.setSettings({ hedgeSec: Number(e.target.value) }); };
+$('speedToggle').onchange = async (e) => { state = await jarvis.setSettings({ speedOrder: e.target.checked }); };
 
 function renderPacks() {
   els.packList.innerHTML = '';
@@ -543,7 +700,7 @@ function showWake(w) {
 jarvis.onWake((w) => {
   if (w.type === 'status') { showWake(w); return; }
   if (w.type === 'hit') {
-    if (current || recording || els.settings.classList.contains('open')) return;
+    if (runs.has(activeId) || recording || els.settings.classList.contains('open')) return;
     stopSpeaking();
     beep();
     setTimeout(() => startRecording({ auto: true }), 180);
@@ -554,6 +711,7 @@ function renderAll() {
   renderVoice();
   renderProviders();
   renderPacks();
+  renderSidePacks();
   renderMemory();
   els.speakToggle.classList.toggle('off', !state.settings.speak);
   els.speakToggle.title = state.settings.speak ? 'Vorlesen: an' : 'Vorlesen: aus';
@@ -586,18 +744,19 @@ els.checkUpdate.onclick = async () => {
 els.autoUpdate.onchange = async () => { state = await jarvis.setSettings({ autoUpdate: els.autoUpdate.checked }); };
 
 // ---------- Ereignisse ----------
-els.send.onclick = () => (current ? jarvis.stop(current.reqId) : sendMessage());
+els.send.onclick = () => (activeRun() ? jarvis.stop(activeRun().reqId) : sendMessage());
 els.input.addEventListener('input', autoGrow);
 els.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
-els.chips.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) { els.input.value = `${c.dataset.cmd} `; els.input.focus(); updateSuggest(); } });
+els.sidePacks.addEventListener('click', (e) => { const c = e.target.closest('.side-pack'); if (c) { els.input.value = `${c.dataset.cmd} `; els.input.focus(); updateSuggest(); } });
+$('packsTitle').onclick = () => { const off = document.body.classList.toggle('packs-off'); $('packsCaret').textContent = off ? '▸' : '▾'; };
+$('sideToggle').onclick = () => document.body.classList.toggle('side-off');
+$('sideMemory').onclick = () => openSettings('gedaechtnis');
+$('sideSettings').onclick = () => openSettings();
 $('openSettings').onclick = openSettings;
 els.welcomeConnect.onclick = openSettings;
 $('closeSettings').onclick = closeSettings;
 els.scrim.onclick = closeSettings;
-els.newChat.onclick = () => {
-  if (current) jarvis.stop(current.reqId);
-  history = []; els.messages.innerHTML = ''; stopSpeaking(); updateWelcome(); els.input.focus();
-};
+els.newChat.onclick = () => { openNewChat(); };
 els.speakToggle.onclick = async () => {
   state = await jarvis.setSettings({ speak: !state.settings.speak });
   if (!state.settings.speak) stopSpeaking();
@@ -613,7 +772,13 @@ speechSynthesis.onvoiceschanged = () => {};
 // ---------- Start ----------
 (async () => {
   state = await jarvis.getState();
+  try { chats = (await jarvis.getChats()).map((c) => ({ ...c, unread: false })); } catch { chats = []; }
+  const fresh = { id: newId(), title: 'Neuer Chat', created: Date.now(), updated: Date.now(), messages: [] };
+  chats.unshift(fresh);
+  activeId = fresh.id;
+  if (window.innerWidth < 860) document.body.classList.add('side-off');
   renderAll();
+  renderChatList();
   showWake(await jarvis.getWake());
   els.input.focus();
   const before = connectedCount();

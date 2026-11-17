@@ -5,7 +5,7 @@
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504, 529]);
 
 class ProviderError extends Error {
-  constructor(message, { status = null, retryAfterMs = null, network = false, timeout = false, streamed = false, modelGone = false } = {}) {
+  constructor(message, { status = null, retryAfterMs = null, network = false, timeout = false, streamed = false, modelGone = false, lost = false } = {}) {
     super(message);
     this.name = 'ProviderError';
     this.status = status;
@@ -14,11 +14,12 @@ class ProviderError extends Error {
     this.timeout = timeout;
     this.streamed = streamed; // es wurde schon Text angezeigt
     this.modelGone = modelGone; // Modell abgeschaltet / nicht gefunden
+    this.lost = lost; // eine andere KI war schneller
   }
 }
 
 function isRetryable(err) {
-  if (!(err instanceof ProviderError) || err.streamed) return false;
+  if (!(err instanceof ProviderError) || err.streamed || err.lost) return false;
   if (err.timeout || err.network) return true;
   return err.status != null && RETRYABLE_STATUS.has(err.status);
 }
@@ -73,43 +74,116 @@ async function callWithRetry(fn, { maxRetries = 2, timeoutMs = 60000, sleep = de
 }
 
 /**
- * chain: [{ id, label, run: (signal, beat) => Promise<string>, repair?: (err) => Promise<boolean> }]
+ * chain: [{ id, label, run: (signal, beat, ctx) => Promise<string>, repair?: (err) => Promise<boolean> }]
+ * ctx.claim(): vor dem ersten angezeigten Text aufrufen – nur die KI, die zuerst "claimt", gewinnt;
+ *   alle anderen laufenden KIs werden sofort abgebrochen. false = zu spät, Text verwerfen.
  * repair: darf z. B. ein abgeschaltetes Modell ersetzen; true = gleiche KI nochmal versuchen
+ *
+ * opts.parallel  Wie viele KIs gleichzeitig starten (1 = nacheinander)
+ * opts.hedgeMs   Antwortet noch keine KI nach dieser Zeit, wird zusätzlich die nächste gestartet (0 = aus)
+ * opts.maxActive Obergrenze gleichzeitig laufender Anfragen
  */
-async function runWithFallback(chain, opts = {}) {
-  const { log = () => {}, onSwitch = () => {} } = opts;
+function runWithFallback(chain, opts = {}) {
+  const { log = () => {}, onSwitch = () => {}, onLaunch = () => {}, parallel = 1, hedgeMs = 0, maxActive = 3 } = opts;
+  if (!chain.length) return Promise.reject(new ProviderError('Keine KI verbunden. Öffne die Einstellungen und verbinde mindestens einen Anbieter.'));
   const failures = [];
-  if (!chain.length) throw new ProviderError('Keine KI verbunden. Öffne die Einstellungen und verbinde mindestens einen Anbieter.');
-  for (const step of chain) {
-    if (failures.length) onSwitch(step, failures[failures.length - 1]);
-    let repaired = false;
-    for (;;) {
-      try {
-        const text = await callWithRetry(step.run, {
-          ...opts,
-          onRetry: ({ attempt, waitMs, error }) => log(`[${step.label}] Versuch ${attempt} in ${waitMs} ms – ${error.message}`),
-        });
-        log(failures.length ? `[${step.label}] hat übernommen` : `[${step.label}] hat geantwortet`);
-        return { text, used: step, failures };
-      } catch (err) {
-        if (err.streamed) {
-          log(`[${step.label}] mitten in der Antwort abgebrochen: ${err.message}`);
-          throw err; // schon Text angezeigt -> nicht doppelt antworten
+  const active = new Set();
+  let next = 0;
+  let winner = null;
+  let settled = false;
+  let hedgeTimer = null;
+  const losers = [];
+
+  return new Promise((resolve, reject) => {
+    const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(hedgeTimer); fn(value); };
+
+    function claim(att) {
+      if (winner && winner !== att) return false;
+      if (!winner) {
+        winner = att;
+        clearTimeout(hedgeTimer);
+        for (const other of active) if (other !== att) { other.lost = true; losers.push({ id: other.step.id, ms: Date.now() - other.startedAt }); other.ctrl.abort(); }
+      }
+      return true;
+    }
+
+    async function runAttempt(att) {
+      const { step } = att;
+      const wrapped = (signal, beat) => {
+        if (att.lost) throw new ProviderError('Eine andere KI war schneller', { lost: true });
+        return step.run(AbortSignal.any([signal, att.ctrl.signal]), beat, { claim: () => claim(att) });
+      };
+      let repaired = false;
+      for (;;) {
+        try {
+          return await callWithRetry(wrapped, {
+            ...opts,
+            onRetry: ({ attempt, waitMs, error }) => log(`[${step.label}] Versuch ${attempt} in ${waitMs} ms – ${error.message}`),
+          });
+        } catch (err) {
+          if (att.lost) throw new ProviderError('Eine andere KI war schneller', { lost: true });
+          if (err.streamed) throw err; // schon Text angezeigt -> nicht doppelt antworten
+          if (!repaired && err.modelGone && step.repair) {
+            repaired = true;
+            try {
+              if (await step.repair(err)) { log(`[${step.label.split(' · ')[0]}] Modell veraltet – auf neues Modell umgestellt`); continue; }
+            } catch { /* Reparatur fehlgeschlagen */ }
+          }
+          throw err;
         }
-        if (!repaired && err.modelGone && step.repair) {
-          repaired = true;
-          try {
-            if (await step.repair(err)) { log(`[${step.label.split(' · ')[0]}] Modell veraltet – auf neues Modell umgestellt`); continue; }
-          } catch { /* Reparatur fehlgeschlagen */ }
-        }
-        log(`[${step.label}] fehlgeschlagen: ${err.message}`);
-        failures.push({ id: step.id, label: step.label, error: err.message });
-        break;
       }
     }
-  }
-  const summary = failures.map((f) => `• ${f.label}: ${f.error}`).join('\n');
-  throw new ProviderError(`Keine KI konnte antworten:\n${summary}`);
+
+    function scheduleHedge() {
+      clearTimeout(hedgeTimer);
+      if (!(hedgeMs > 0) || winner || settled || next >= chain.length) return;
+      hedgeTimer = setTimeout(() => {
+        if (winner || settled || next >= chain.length) return;
+        if (active.size < maxActive) launch('slow'); else scheduleHedge();
+      }, hedgeMs);
+    }
+
+    function launch(reason) {
+      const step = chain[next++];
+      const att = { step, ctrl: new AbortController(), lost: false, startedAt: Date.now() };
+      active.add(att);
+      if (reason === 'failed' && failures.length) onSwitch(step, failures[failures.length - 1]);
+      onLaunch(step, reason, failures[failures.length - 1]);
+      runAttempt(att).then((text) => onDone(att, text), (err) => onFail(att, err));
+      scheduleHedge();
+    }
+
+    function onDone(att, text) {
+      if (settled || (winner && winner !== att)) return;
+      claim(att);
+      active.delete(att);
+      log(failures.length ? `[${att.step.label}] hat übernommen` : `[${att.step.label}] hat geantwortet`);
+      finish(resolve, { text, used: att.step, failures, losers, ms: Date.now() - att.startedAt });
+    }
+
+    function onFail(att, err) {
+      active.delete(att);
+      if (settled || err.lost || att.lost) return;
+      if (err.streamed) {
+        log(`[${att.step.label}] mitten in der Antwort abgebrochen: ${err.message}`);
+        finish(reject, err);
+        return;
+      }
+      log(`[${att.step.label}] fehlgeschlagen: ${err.message}`);
+      failures.push({ id: att.step.id, label: att.step.label, error: err.message, ms: Date.now() - att.startedAt });
+      if (winner) return;
+      if (next < chain.length && (active.size === 0 || active.size < parallel)) { launch('failed'); return; }
+      if (active.size === 0) {
+        const summary = failures.map((f) => `• ${f.label}: ${f.error}`).join('\n');
+        const e = new ProviderError(`Keine KI konnte antworten:\n${summary}`);
+        e.failures = failures;
+        finish(reject, e);
+      }
+    }
+
+    const first = Math.max(1, Math.min(parallel, chain.length));
+    for (let i = 0; i < first; i++) launch(i === 0 ? 'start' : 'parallel');
+  });
 }
 
 module.exports = { ProviderError, isRetryable, parseRetryAfter, backoffDelay, callWithRetry, runWithFallback, RETRYABLE_STATUS };

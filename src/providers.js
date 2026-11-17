@@ -7,7 +7,7 @@ const PROVIDERS = [
     prefer: [/sonnet/i, /opus/i, /haiku/i] },
   { id: 'openai', name: 'ChatGPT (OpenAI)', kind: 'openai', base: 'https://api.openai.com/v1',
     keyUrl: 'https://platform.openai.com/api-keys', desc: 'Allrounder. Kann auch deine Sprache in Text umwandeln.',
-    prefer: [/^gpt-[\d.]+$/i, /^gpt-[\d.]+-mini$/i, /^gpt/i], stt: 'openai' },
+    prefer: [/^gpt-[\d.]+-mini$/i, /^gpt-[\d.]+$/i, /^gpt/i], stt: 'openai' },
   { id: 'gemini', name: 'Gemini (Google)', kind: 'gemini', base: 'https://generativelanguage.googleapis.com/v1beta',
     keyUrl: 'https://aistudio.google.com/app/apikey', desc: 'Kostenloser Einstieg möglich. Versteht auch Sprache.',
     prefer: [/^gemini-[\d.]+-flash(-preview)?(-\d+)?$/i, /flash(?!-lite)/i, /pro/i, /flash/i], stt: 'gemini' },
@@ -20,6 +20,20 @@ const PROVIDERS = [
   { id: 'openrouter', name: 'OpenRouter', kind: 'openai', base: 'https://openrouter.ai/api/v1',
     keyUrl: 'https://openrouter.ai/keys', desc: 'Ein Schlüssel für hunderte Modelle verschiedener Anbieter.',
     prefer: [/claude.*sonnet/i, /gpt/i] },
+  { id: 'xai', name: 'Grok (xAI)', kind: 'openai', base: 'https://api.x.ai/v1',
+    keyUrl: 'https://console.x.ai', desc: 'Grok-Modelle von xAI.', prefer: [/grok-[\d.]+-fast/i, /grok/i, /./] },
+  { id: 'deepseek', name: 'DeepSeek', kind: 'openai', base: 'https://api.deepseek.com/v1',
+    keyUrl: 'https://platform.deepseek.com/api_keys', desc: 'Günstig und stark beim Programmieren.', prefer: [/deepseek-chat/i, /./] },
+  { id: 'together', name: 'Together AI', kind: 'openai', base: 'https://api.together.xyz/v1',
+    keyUrl: 'https://api.together.ai/settings/api-keys', desc: 'Viele offene Modelle, schnell.', prefer: [/llama.*70b.*turbo/i, /llama.*70b/i, /llama/i, /./] },
+  { id: 'cerebras', name: 'Cerebras', kind: 'openai', base: 'https://api.cerebras.ai/v1',
+    keyUrl: 'https://cloud.cerebras.ai', desc: 'Extrem schnelle Antworten, kostenloser Einstieg.', prefer: [/llama.*70b/i, /gpt-oss/i, /./] },
+  { id: 'sambanova', name: 'SambaNova', kind: 'openai', base: 'https://api.sambanova.ai/v1',
+    keyUrl: 'https://cloud.sambanova.ai/apis', desc: 'Schnelle offene Modelle, kostenloser Einstieg.', prefer: [/llama.*70b/i, /llama/i, /./] },
+  { id: 'fireworks', name: 'Fireworks', kind: 'openai', base: 'https://api.fireworks.ai/inference/v1',
+    keyUrl: 'https://fireworks.ai/account/api-keys', desc: 'Schnelle offene Modelle.', prefer: [/llama.*70b/i, /llama/i, /./] },
+  { id: 'custom', name: 'Eigener Anbieter', kind: 'openai', base: '', custom: true, keyOptional: true,
+    keyUrl: 'https://platform.openai.com/docs/api-reference', desc: 'Jeder Dienst mit OpenAI-kompatibler Schnittstelle (eigene Adresse).', prefer: [/./] },
   { id: 'ollama', name: 'Ollama (lokal)', kind: 'openai', base: 'http://localhost:11434/v1', local: true,
     keyUrl: 'https://ollama.com/download', desc: 'Läuft komplett auf deinem PC – ohne Internet, ohne Kosten.',
     prefer: [/llama/i, /qwen/i, /mistral/i, /gemma/i] },
@@ -109,7 +123,7 @@ async function listModels(p, key, fetchImpl = fetch, signal) {
       .filter((n) => /gemini/i.test(n) && !NON_CHAT.test(n));
   } else {
     const j = await request(fetchImpl, `${p.base}/models`, { headers: headersFor(p, key), signal });
-    ids = (j.data || j.models || []).map((m) => m.id || m.name).filter((n) => n && !NON_CHAT.test(n));
+    ids = (Array.isArray(j) ? j : (j.data || j.models || [])).map((m) => m.id || m.name).filter((n) => n && !NON_CHAT.test(n));
   }
   if (!ids.length) throw new ProviderError('Verbunden, aber keine passenden Modelle gefunden.');
   return rankModels(p, ids);

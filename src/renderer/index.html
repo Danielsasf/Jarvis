@@ -11,6 +11,7 @@
 
   <header class="topbar">
     <div class="brand">
+      <button class="top-btn" id="sideToggle" title="Seitenleiste ein/aus"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <span class="brand-name">JARVIS</span>
       <span class="brand-ver" id="version">v–</span>
     </div>
@@ -18,15 +19,25 @@
       <button class="top-btn" id="speakToggle" title="Vorlesen an/aus">
         <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
       </button>
-      <button class="top-btn" id="newChat" title="Neuer Chat">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
       <button class="top-btn" id="openSettings" title="Einstellungen">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
       </button>
     </div>
   </header>
 
+  <div class="shell">
+  <aside class="side" id="side">
+    <button class="side-new" id="newChat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Neuer Chat</button>
+    <div class="side-title">Chats</div>
+    <div class="chat-list" id="chatList"></div>
+    <div class="side-title packs-title" id="packsTitle">Pakete <span id="packsCaret">▾</span></div>
+    <div class="side-packs" id="sidePacks"></div>
+    <div class="side-foot">
+      <button id="sideMemory"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3zM9 20h6"/></svg>Gedächtnis <b id="sideMemCount">0</b></button>
+      <button id="sideSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>Einstellungen</button>
+    </div>
+  </aside>
+  <div class="content">
   <section class="stage">
     <dl class="gauges left">
       <div class="gauge"><dt>Verbindung</dt><dd id="roLink">—</dd></div>
@@ -52,7 +63,6 @@
   <main id="chat">
     <section class="welcome" id="welcome">
       <p id="welcomeHint">Sag „Hey Jarvis“, schreib eine Nachricht oder tipp / für Pakete.</p>
-      <div class="chips" id="chips"></div>
       <button class="primary hidden" id="welcomeConnect">KI verbinden</button>
     </section>
     <div id="messages"></div>
@@ -69,6 +79,8 @@
       <svg class="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10"/></svg>
     </button>
   </footer>
+  </div>
+  </div>
 
   <!-- Einstellungen: Liste links, Inhalt rechts -->
   <div class="settings" id="settings" aria-hidden="true">
@@ -88,8 +100,28 @@
 
         <section data-pane="kis">
           <h2>KI-Anbieter</h2>
-          <p class="muted">Jarvis fragt die oberste aktive KI zuerst. Fällt sie aus, übernimmt automatisch die nächste. Veraltete Modelle werden automatisch ersetzt.</p>
+          <p class="muted">Jarvis fragt die schnellsten KIs zuerst. Fällt eine aus oder antwortet nicht, übernimmt automatisch die nächste. Veraltete Modelle werden automatisch ersetzt.</p>
+          <div class="tempo">
+            <h3>Tempo</h3>
+            <div class="setting">
+              <div><b>Zwei KIs gleichzeitig fragen</b><small>Die schnellere gewinnt, die andere wird sofort gestoppt. Verbraucht etwas mehr Kontingent.</small></div>
+              <label class="switch"><input type="checkbox" id="raceToggle"><span></span></label>
+            </div>
+            <div class="setting">
+              <div><b>Weitere KI dazuholen nach</b><small>Antwortet noch keine KI, fragt Jarvis zusätzlich die nächste. Die erste läuft weiter, die schnellste gewinnt.</small></div>
+              <select id="hedgeSel"><option value="0">Nie</option><option value="3">3 Sekunden</option><option value="5">5 Sekunden</option><option value="8">8 Sekunden</option><option value="12">12 Sekunden</option></select>
+            </div>
+            <div class="setting">
+              <div><b>Nach Geschwindigkeit sortieren</b><small>Jarvis misst, wie schnell jede KI antwortet, und fragt die schnellsten zuerst. Aus: es gilt nur deine Reihenfolge.</small></div>
+              <label class="switch"><input type="checkbox" id="speedToggle"><span></span></label>
+            </div>
+          </div>
+          <h3>Deine KIs</h3>
           <div id="providerList"></div>
+          <h3>KI hinzufügen</h3>
+          <p class="muted">Von jedem Anbieter kannst du mehrere Schlüssel eintragen. Fällt eine KI aus, springt Jarvis automatisch zur nächsten.</p>
+          <div class="catalog" id="catalog"></div>
+          <div id="addForm" class="add-form hidden"></div>
         </section>
 
         <section data-pane="pakete" class="hidden">

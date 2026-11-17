@@ -11,7 +11,7 @@ const on = (channel) => (fn) => ipcRenderer.on(channel, (_e, payload) => fn(payl
 
 contextBridge.exposeInMainWorld('jarvis', {
   getState: () => call('state:get'),
-  connect: (id, key) => call('provider:connect', id, key),
+  addAccount: (data) => call('account:add', data),
   disconnect: (id) => call('provider:disconnect', id),
   updateProvider: (id, patch) => call('provider:update', id, patch),
   setOrder: (order) => call('order:set', order),
@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('jarvis', {
   addMemory: (text) => call('memory:add', text),
   removeMemory: (id) => call('memory:remove', id),
   clearMemory: () => call('memory:clear'),
+  getChats: () => call('chats:all'),
+  saveChat: (chat) => call('chats:save', chat),
+  deleteChat: (id) => call('chats:delete', id),
   getWake: () => call('wake:get'),
   onWake: on('wake:event'),
   onLog: on('jarvis:log'),

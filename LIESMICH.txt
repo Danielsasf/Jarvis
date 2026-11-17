@@ -13,8 +13,17 @@ KIs VERBINDEN
 - Bei einem Anbieter auf "Verbinden" klicken, "Schlüssel holen" öffnet die Seite,
   wo du den API-Schlüssel erstellst. Schlüssel einfügen > "Verbinden".
 - Ollama und LM Studio (lokal auf deinem PC) werden automatisch gefunden, wenn sie laufen.
-- Reihenfolge mit den Pfeilen ändern: Die oberste aktive KI antwortet zuerst.
-  Fällt sie aus (überlastet, Limit, kein Internet), übernimmt automatisch die nächste.
+- Beliebig viele KIs: Unter "KI hinzufügen" kannst du von jedem Anbieter mehrere Schlüssel eintragen
+  (z. B. zwei Gemini-Konten) oder mit "Eigener Anbieter" jeden OpenAI-kompatiblen Dienst per Adresse.
+- Fällt eine KI aus (überlastet, Limit, kein Internet), übernimmt automatisch die nächste.
+- Tempo: Jarvis fragt zwei KIs gleichzeitig, die schnellere gewinnt. Antwortet keine, wird nach
+  ein paar Sekunden die nächste dazugeholt. Die KIs werden nach gemessener Geschwindigkeit sortiert.
+  Alles lässt sich oben in den KI-Einstellungen ausschalten (dann gilt nur deine Reihenfolge).
+
+CHATS UND PAKETE
+- Links die Seitenleiste: Chats nach Datum, mehrere gleichzeitig nutzbar. Chats bleiben gespeichert.
+  Doppelklick auf einen Chat = umbenennen, X = löschen. Das Menü-Symbol oben links blendet die Leiste aus.
+- Pakete stehen ebenfalls links. Klick = Befehl wird ins Textfeld gesetzt.
 - Schlüssel werden mit dem Windows-Datenschutz verschlüsselt auf deinem PC gespeichert.
 
 SPRACHE
