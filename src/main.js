@@ -11,6 +11,7 @@ const { WakeWord } = require('./wake');
 const accountsLib = require('./accounts');
 const speed = require('./speed');
 const { ChatStore } = require('./chats');
+const { RemoteServer, findTailscaleIp } = require('./remote');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -38,6 +39,7 @@ const MEMORY_GUIDE = `Gedächtnis:
 let win;
 let memory;
 let chatStore;
+let remote;
 let wake;
 let packs = [];
 const userPackDir = () => path.join(app.getPath('userData'), 'pakete');
@@ -80,6 +82,8 @@ function loadCfg() {
 let cfg = {};
 function normalize(c) {
   accountsLib.migrate(c);
+  c.remote = { enabled: false, port: 8484, devices: [], ...(c.remote || {}) };
+  if (!Array.isArray(c.remote.devices)) c.remote.devices = [];
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
     race: true, hedgeSec: 5, speedOrder: true, ...(c.settings || {}) };
   // alte Standard-Persönlichkeit aus V1 automatisch auf die neue (ohne Emojis) heben
@@ -117,6 +121,7 @@ function publicState() {
     packs: packs.map((p) => ({ id: p.id, name: p.name, befehl: p.befehl, beschreibung: p.beschreibung, symbol: p.symbol,
       beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), instructions: p.instructions })),
     memory: memory.list(),
+    remote: remoteInfo(),
     settings: cfg.settings,
     providers: cfg.order.map((id) => {
       const acc = cfg.accounts[id];
@@ -129,6 +134,23 @@ function publicState() {
     }),
     catalog: PROVIDERS.map((t) => ({ type: t.id, name: t.name, desc: t.desc, local: !!t.local, custom: !!t.custom, keyOptional: !!t.keyOptional, keyUrl: t.keyUrl })),
   };
+}
+function remoteInfo() {
+  const r = cfg.remote;
+  const st = remote?.status() || { running: false };
+  return {
+    enabled: r.enabled, port: r.port, running: st.running, url: st.url,
+    tailscale: !!(process.env.JARVIS_REMOTE_HOST || findTailscaleIp()),
+    devices: r.devices.map((d) => ({ id: d.id, name: d.name, created: d.created, last: d.last })),
+  };
+}
+async function remoteApply() {
+  const r = cfg.remote;
+  if (!r.enabled) { remote.stop(); return; }
+  const host = process.env.JARVIS_REMOTE_HOST || findTailscaleIp(); // nur Tailscale (oder Testadresse), nie das ganze Netzwerk
+  if (!host) { remote.stop(); return; }
+  if (remote.status().running && (remote.host !== host || remote.port !== r.port)) remote.stop();
+  try { await remote.start({ host, port: r.port }); } catch (err) { log(`Handy-Zugang konnte nicht starten: ${err.message}`); remote.stop(); }
 }
 const P = (id) => accountsLib.providerFor(id, cfg.accounts[id]);
 const activeChain = () => cfg.order.filter((id) => cfg.accounts[id] && cfg.accounts[id].enabled !== false);
@@ -233,9 +255,9 @@ ipcMain.handle('local:detect', async () => {
   return publicState();
 });
 
-// Live-Antwort: Stücke gehen per 'chat:delta' an das Fenster
-const running = new Map();
-ipcMain.handle('chat:send', async (_e, reqId, messages) => {
+// Eine Antwort erzeugen (PC-Fenster und Handy-Zugang nutzen dieselbe Funktion).
+// onStatus(payload) / onDelta(text) melden den Fortschritt; abortSignal bricht ab.
+async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abortSignal = new AbortController().signal } = {}) {
   const clean = (messages || [])
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .map((m) => ({ role: m.role, content: m.content }))
@@ -247,13 +269,11 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
   if (hit) {
     invoked = hit.pack;
     last.content = hit.rest || `Ich möchte das Paket „${invoked.name}“ nutzen. Sag kurz, wobei du helfen kannst, und frag, womit wir anfangen.`;
-    emit('chat:status', { reqId, phase: 'pack', pack: invoked.name });
+    onStatus({ phase: 'pack', pack: invoked.name });
   }
   const system = buildSystem(invoked);
   const t0 = Date.now();
   let firstAt = null;
-  const userAbort = new AbortController();
-  running.set(reqId, userAbort);
 
   const chain = orderedChain().map((id) => {
     const p = P(id);
@@ -263,17 +283,17 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
       id,
       get label() { return `${p.name} · ${s.model}`; },
       run: (signal, beat, ctx) => {
-        const both = AbortSignal.any([signal, userAbort.signal]);
+        const both = AbortSignal.any([signal, abortSignal]);
         const startedAt = Date.now();
         let seen = false;
-        emit('chat:status', { reqId, phase: 'asking', provider: p.name, model: s.model });
+        onStatus({ phase: 'asking', provider: p.name, model: s.model });
         return chatStream(p, decrypt(s.key), s.model, clean, system, {
           signal: both, beat,
           onDelta: (text) => {
             if (!seen) { seen = true; recordSpeed(id, Date.now() - startedAt, true); }
             if (ctx && !ctx.claim()) return; // eine andere KI war schneller
-            if (!firstAt) { firstAt = Date.now(); emit('chat:status', { reqId, phase: 'streaming', provider: p.name, model: s.model, firstMs: firstAt - t0 }); }
-            emit('chat:delta', { reqId, text });
+            if (!firstAt) { firstAt = Date.now(); onStatus({ phase: 'streaming', provider: p.name, model: s.model, firstMs: firstAt - t0 }); }
+            onDelta(text);
           },
         });
       },
@@ -287,8 +307,8 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
       log, timeoutMs: cfg.settings.timeoutSec * 1000, maxRetries: 2,
       parallel: cfg.settings.race ? 2 : 1,
       hedgeMs: cfg.settings.hedgeSec * 1000,
-      onSwitch: (step, failed) => emit('chat:status', { reqId, phase: 'switch', provider: byId(step.id), failed: byId(failed.id) }),
-      onLaunch: (step, reason) => { if (reason === 'slow') emit('chat:status', { reqId, phase: 'slow', provider: byId(step.id) }); },
+      onSwitch: (step, failed) => onStatus({ phase: 'switch', provider: byId(step.id), failed: byId(failed.id) }),
+      onLaunch: (step, reason) => { if (reason === 'slow') onStatus({ phase: 'slow', provider: byId(step.id) }); },
     });
     for (const f of result.failures) recordSpeed(f.id, f.ms, false);
     for (const l of result.losers) if (cfg.accounts[l.id] && l.ms >= 1000 && !(cfg.accounts[l.id].ms >= l.ms)) recordSpeed(l.id, l.ms, true); // abgebrochen: mindestens so langsam
@@ -297,9 +317,23 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
     if (mem.saved.length || mem.forgotten.length) emit('jarvis:state', publicState());
     return { text: stripTags(result.text).trim(), memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
   } catch (err) {
-    if (userAbort.signal.aborted) return { stopped: true };
+    if (abortSignal.aborted) return { stopped: true };
     for (const f of err.failures || []) recordSpeed(f.id, f.ms, false);
     throw err;
+  }
+}
+
+// Live-Antwort im Fenster: Stücke gehen per 'chat:delta' an das Fenster
+const running = new Map();
+ipcMain.handle('chat:send', async (_e, reqId, messages) => {
+  const userAbort = new AbortController();
+  running.set(reqId, userAbort);
+  try {
+    return await runChat(messages, {
+      abortSignal: userAbort.signal,
+      onStatus: (st) => emit('chat:status', { reqId, ...st }),
+      onDelta: (text) => emit('chat:delta', { reqId, text }),
+    });
   } finally {
     running.delete(reqId);
   }
@@ -322,6 +356,27 @@ ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
 ipcMain.handle('open:external', (_e, url) => {
   if (PROVIDERS.some((p) => p.keyUrl === url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
 });
+
+// ---------- Handy-Zugang ----------
+ipcMain.handle('remote:set', async (_e, patch = {}) => {
+  if (typeof patch.enabled === 'boolean') cfg.remote.enabled = patch.enabled;
+  if (Number.isInteger(patch.port) && patch.port >= 1024 && patch.port <= 65535) cfg.remote.port = patch.port;
+  saveCfg();
+  await remoteApply();
+  return publicState();
+});
+ipcMain.handle('remote:code', async () => {
+  if (!cfg.remote.enabled) throw new Error('Schalte den Handy-Zugang zuerst ein.');
+  await remoteApply();
+  if (!remote.status().running) throw new Error('Tailscale wurde nicht gefunden. Starte Tailscale am PC und versuche es nochmal.');
+  return remote.newCode();
+});
+ipcMain.handle('remote:revoke', (_e, id) => {
+  cfg.remote.devices = cfg.remote.devices.filter((d) => d.id !== id);
+  saveCfg();
+  return publicState();
+});
+ipcMain.handle('remote:recheck', async () => { await remoteApply(); return publicState(); });
 
 // ---------- Chats ----------
 ipcMain.handle('chats:all', () => chatStore.all());
@@ -411,6 +466,8 @@ function createWindow() {
       for (const id of activeChain()) if (!P(id).local) refreshModels(id).catch(() => {});
       if (cfg.settings.autoUpdate) checkUpdate(false);
       if (cfg.settings.wakeWord) wake.set(true, cfg.settings.wakeSens);
+      remoteApply().catch(() => {});
+      setInterval(() => { if (cfg.remote.enabled && !remote.status().running) remoteApply().catch(() => {}); }, 30000); // Tailscale später gestartet?
     }, 1500);
   });
 }
@@ -419,6 +476,12 @@ app.whenReady().then(() => {
   cfg = normalize(loadCfg());
   saveCfg();
   chatStore = new ChatStore(path.join(app.getPath('userData'), 'chats.json'));
+  remote = new RemoteServer({
+    store: chatStore, log,
+    answer: (messages, opts) => runChat(messages, opts),
+    devices: { get: () => cfg.remote.devices, save: (list) => { cfg.remote.devices = list; saveCfg(); } },
+    onChat: (chat) => emit('chats:remote', chat),
+  });
   memory = new Memory(path.join(app.getPath('userData'), 'gedaechtnis.json'));
   wake = new WakeWord({
     dir: app.getPath('userData'), log,
@@ -432,5 +495,5 @@ app.whenReady().then(() => {
   log(`Jarvis ${CODE_VERSION} gestartet`);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => { wake?.stop(); app.quit(); });
-app.on('before-quit', () => wake?.stop());
+app.on('window-all-closed', () => { wake?.stop(); remote?.stop(); app.quit(); });
+app.on('before-quit', () => { wake?.stop(); remote?.stop(); });

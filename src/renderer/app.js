@@ -639,6 +639,47 @@ $('importPack').onclick = async () => {
 };
 $('packFolder').onclick = () => jarvis.openPackFolder();
 
+function renderRemote() {
+  const r = state.remote || {};
+  $('remoteToggle').checked = !!r.enabled;
+  const box = $('remoteStatus');
+  box.className = 'wake-status';
+  if (!r.enabled) box.textContent = 'Aus.';
+  else if (r.running) { box.classList.add('ok'); box.textContent = `Läuft. Adresse für dein Handy: ${r.url}`; }
+  else if (!r.tailscale) { box.classList.add('err'); box.textContent = 'Tailscale wurde auf diesem PC nicht gefunden. Installiere und starte Tailscale, dann auf „Neu prüfen“ klicken.'; }
+  else { box.classList.add('err'); box.textContent = 'Der Server konnte nicht starten (Port belegt?).'; }
+  $('deviceList').innerHTML = (r.devices || []).length ? '' : '<li class="muted">Noch kein Handy gekoppelt.</li>';
+  for (const d of r.devices || []) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${escapeHtml(d.name)}</span><small>gekoppelt ${new Date(d.created).toLocaleDateString('de-DE')}${d.last ? ` · zuletzt ${new Date(d.last).toLocaleString('de-DE')}` : ''}</small><button class="icon-btn" title="Sperren"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+    li.querySelector('button').onclick = async () => { if (confirm(`„${d.name}“ sperren?`)) { state = await jarvis.revokeDevice(d.id); renderAll(); } };
+    $('deviceList').appendChild(li);
+  }
+}
+$('remoteToggle').onchange = async (e) => { try { state = await jarvis.setRemote({ enabled: e.target.checked }); } catch (err) { toast(err.message, 5000); } renderAll(); };
+$('remoteRecheck').onclick = async () => { state = await jarvis.recheckRemote(); renderAll(); };
+let codeTimer = 0;
+$('remoteCode').onclick = async () => {
+  try {
+    const { code, expires } = await jarvis.remoteCode();
+    const el = $('pairCode');
+    el.textContent = code; el.classList.remove('hidden');
+    clearTimeout(codeTimer); codeTimer = setTimeout(() => el.classList.add('hidden'), Math.max(1000, expires - Date.now()));
+    state = await jarvis.getState(); renderAll();
+  } catch (err) { toast(err.message, 6000); }
+};
+setInterval(async () => {
+  if (!$('settings').classList.contains('open')) return;
+  try { const st = await jarvis.getState(); state.remote = st.remote; renderRemote(); } catch { /* egal */ }
+}, 3000);
+jarvis.onRemoteChat((c) => {
+  jarvis.getState().then((st) => { state.remote = st.remote; renderRemote(); }).catch(() => {});
+  const known = chats.find((x) => x.id === c.id);
+  if (!known) chats.push({ ...c, unread: true });
+  else if (known.id !== activeId && !runs.has(known.id)) { known.messages = c.messages; known.title = c.title; known.updated = c.updated; known.unread = true; }
+  renderChatList();
+});
+
 function renderMemory() {
   const items = [...(state.memory || [])].reverse();
   els.memList.innerHTML = items.length ? '' : '<li class="muted">Noch nichts gemerkt.</li>';
@@ -733,6 +774,7 @@ function renderAll() {
   renderPacks();
   renderSidePacks();
   renderMemory();
+  renderRemote();
   els.speakToggle.classList.toggle('off', !state.settings.speak);
   els.speakToggle.title = state.settings.speak ? 'Vorlesen: an' : 'Vorlesen: aus';
   updateReadouts();

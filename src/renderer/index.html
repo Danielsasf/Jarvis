@@ -203,8 +203,22 @@
 
         <section data-pane="handy" class="hidden">
           <h2>Handy</h2>
-          <p class="muted">Jarvis mit deinem Handy verbinden – kommt in einem der nächsten Updates.</p>
-          <div class="soon">BALD VERFÜGBAR</div>
+          <p class="muted">Chatte von unterwegs mit deinem Jarvis. Das geht, solange dein PC an ist und Jarvis offen ist. Dein Handy bekommt nur den Chat, keine Schlüssel und keinen Zugriff auf Dateien oder Programme.</p>
+          <div class="setting">
+            <div><b>Handy-Zugang</b><small>Standardmäßig aus. Erreichbar nur über dein privates Tailscale-Netz, nicht über das offene Internet.</small></div>
+            <label class="switch"><input type="checkbox" id="remoteToggle"><span></span></label>
+          </div>
+          <p class="wake-status" id="remoteStatus">Aus.</p>
+          <h3>Einrichten</h3>
+          <ol class="muted steps-list">
+            <li>Installiere <b>Tailscale</b> (kostenlos) auf PC und Handy: <code>tailscale.com/download</code>. Melde dich auf beiden mit demselben Konto an.</li>
+            <li>Schalte oben den Handy-Zugang ein. Unten erscheint die Adresse für dein Handy.</li>
+            <li>Öffne die Adresse im Handy-Browser, erzeuge hier einen Kopplungscode und tippe ihn am Handy ein.</li>
+            <li>Tipp: Im Handy-Browser „Zum Startbildschirm hinzufügen“ – dann ist Jarvis wie eine App.</li>
+          </ol>
+          <div class="row"><button class="primary" id="remoteCode">Kopplungscode erzeugen</button><button class="ghost" id="remoteRecheck">Neu prüfen</button><span class="pair-code hidden" id="pairCode"></span></div>
+          <h3>Gekoppelte Handys</h3>
+          <ul class="mem-list" id="deviceList"></ul>
         </section>
       </div>
     </div>

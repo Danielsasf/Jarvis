@@ -305,3 +305,6 @@ body.packs-off .side-packs { display: none; }
 .side-search button:hover { color: var(--accent); }
 .chat-item { flex-wrap: wrap; }
 .chat-item .sn { flex: 0 0 100%; font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.steps-list { padding-left: 1.2em; line-height: 1.6; } .steps-list li { margin-bottom: 4px; }
+.pair-code { font-family: var(--mono); font-size: 26px; letter-spacing: .3em; color: var(--accent); border: 1px solid var(--accent); padding: 4px 14px; }
