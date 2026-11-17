@@ -179,13 +179,19 @@ test('Update wird heruntergeladen, geprüft und als aktuell markiert', async () 
   await assert.rejects(updater.downloadUpdate({ url: 'x', expectedVersion: '2.1.0', appDir: dir, shellVersion: '2.0.0', fetchImpl: bad }), /beschädigt/);
 });
 
-test('Update-Check erkennt neue Version im GitHub-Release', async () => {
-  const f = async () => ({ ok: true, status: 200, json: async () => ({ tag_name: 'v2.1.0', assets: [{ name: 'jarvis-app.json', browser_download_url: 'https://dl' }] }) });
-  const r = await updater.checkForUpdate({ repo: 'a/b', currentVersion: '2.0.0', fetchImpl: f });
-  assert.equal(r.available, true);
-  assert.equal(r.version, '2.1.0');
-  const same = await updater.checkForUpdate({ repo: 'a/b', currentVersion: '2.1.0', fetchImpl: f });
-  assert.equal(same.available, false);
+test('Update-Check: Release und Repo-Datei, die neuere gewinnt', async () => {
+  const mk = (relTag, fileVer) => async (url) => {
+    if (url.includes('api.github.com')) return relTag ? { ok: true, status: 200, json: async () => ({ tag_name: relTag, assets: [{ name: 'jarvis-app.json', browser_download_url: 'https://rel' }] }) } : { ok: false, status: 404 };
+    return fileVer ? { ok: true, status: 200, json: async () => ({ version: fileVer }) } : { ok: false, status: 404 };
+  };
+  let r = await updater.checkForUpdate({ repo: 'a/b', currentVersion: '2.0.0', fetchImpl: mk('v2.1.0', null) });
+  assert.equal(r.version, '2.1.0'); assert.equal(r.url, 'https://rel');
+  r = await updater.checkForUpdate({ repo: 'a/b', currentVersion: '2.0.0', fetchImpl: mk('v2.1.0', '2.2.0') });
+  assert.equal(r.version, '2.2.0'); assert.match(r.url, /raw\.githubusercontent\.com\/a\/b\/main\/release\/jarvis-app\.json/);
+  r = await updater.checkForUpdate({ repo: 'a/b', currentVersion: '2.2.0', fetchImpl: mk('v2.1.0', '2.2.0') });
+  assert.equal(r.available, false);
+  r = await updater.checkForUpdate({ repo: 'a/b', currentVersion: '2.0.0', fetchImpl: mk(null, null) });
+  assert.equal(r.available, false);
 });
 
 // ---------- Vorlesen ----------

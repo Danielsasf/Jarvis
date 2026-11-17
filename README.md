@@ -9,4 +9,4 @@ Persönlicher KI-Assistent für Windows, der mehrere KIs verbindet (Claude, Chat
 - Selbst-Update über die Releases dieses Repos (`jarvis-app.json`)
 
 Starten (Entwicklung): `npm install` und `npm start`. Tests: `npm test`.
-Release bauen: Version in `src/version.js` erhöhen, `node tools/make-release.js`, `dist/jarvis-app.json` an ein Release mit Tag `v<version>` hängen.
+Update veröffentlichen: Version in `src/version.js` erhöhen, `node tools/make-release.js` ausführen und den Ordner `release/` hochladen. Jarvis holt sich `release/version.json` + `release/jarvis-app.json` automatisch.

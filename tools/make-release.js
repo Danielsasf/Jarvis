@@ -28,4 +28,7 @@ const pkg = {
 };
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist', 'jarvis-app.json'), JSON.stringify(pkg));
+fs.mkdirSync(path.join(root, 'release'), { recursive: true });
+fs.copyFileSync(path.join(root, 'dist', 'jarvis-app.json'), path.join(root, 'release', 'jarvis-app.json'));
+fs.writeFileSync(path.join(root, 'release', 'version.json'), JSON.stringify({ version: CODE_VERSION, notes: process.env.NOTES || '' }, null, 2));
 console.log(`jarvis-app.json v${CODE_VERSION}: ${Object.keys(files).length} Dateien`);
