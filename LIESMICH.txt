@@ -55,3 +55,12 @@ Am Handy gibt es 🔊 (Antworten werden vorgelesen) und - mit https-Adresse - �
 laut und hört danach wieder zu; nochmal 🎤 tippen beendet). https einrichten: Tailscale-Admin > DNS > HTTPS-Zertifikate
 aktivieren, dann am PC "tailscale serve --bg 8484" und die angezeigte https-Adresse am Handy öffnen (neu koppeln).
 Ohne https: Mikrofon-Taste der Handy-Tastatur zum Diktieren benutzen.
+
+E-MAIL LESEN (ab 2.7.0)
+-----------------------
+Einstellungen > E-Mail: Anbieter wählen (web.de, GMX, Gmail, Outlook, iCloud oder anderer IMAP), Adresse + Passwort eintragen,
+"Speichern & testen", dann "E-Mail lesen erlauben" einschalten. Danach z. B. fragen: "Fasse meine neuen Mails zusammen".
+- Nur lesen: Jarvis sendet, löscht, verschiebt nichts und markiert nichts als gelesen.
+- Abruf nur, wenn du nach Mails fragst. Die Mail-Texte gehen für die Zusammenfassung an die KI, die gerade antwortet.
+- web.de/GMX: in den Einstellungen unter "POP3 & IMAP" IMAP erlauben (bei Zwei-Faktor: Anwendungspasswort).
+  Gmail/iCloud/Outlook: App-Passwort erzeugen, das normale Passwort geht dort nicht.

@@ -12,6 +12,7 @@ const accountsLib = require('./accounts');
 const speed = require('./speed');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
+const mailLib = require('./mail');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -84,6 +85,7 @@ function normalize(c) {
   accountsLib.migrate(c);
   c.remote = { enabled: false, port: 8484, devices: [], ...(c.remote || {}) };
   if (!Array.isArray(c.remote.devices)) c.remote.devices = [];
+  c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
     race: true, hedgeSec: 5, speedOrder: true, ...(c.settings || {}) };
   // alte Standard-Persönlichkeit aus V1 automatisch auf die neue (ohne Emojis) heben
@@ -122,6 +124,7 @@ function publicState() {
       beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), instructions: p.instructions })),
     memory: memory.list(),
     remote: remoteInfo(),
+    mail: { enabled: cfg.mail.enabled, preset: cfg.mail.preset, host: cfg.mail.host, port: cfg.mail.port, user: cfg.mail.user, hasPass: !!cfg.mail.pass, days: cfg.mail.days },
     settings: cfg.settings,
     providers: cfg.order.map((id) => {
       const acc = cfg.accounts[id];
@@ -271,7 +274,19 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     last.content = hit.rest || `Ich möchte das Paket „${invoked.name}“ nutzen. Sag kurz, wobei du helfen kannst, und frag, womit wir anfangen.`;
     onStatus({ phase: 'pack', pack: invoked.name });
   }
-  const system = buildSystem(invoked);
+  let system = buildSystem(invoked);
+  if (cfg.mail.enabled && cfg.mail.pass && last?.role === 'user' && mailLib.asksForMail(last.content)) {
+    onStatus({ phase: 'mail' });
+    const unseenOnly = /ungelesen|neue\b/i.test(last.content) && !/alle/i.test(last.content);
+    try {
+      const mails = await mailLib.fetchRecent(mailCreds(), { days: cfg.mail.days, max: 12, unseenOnly });
+      system += '\n\n' + mailLib.promptBlock(mails, { days: cfg.mail.days });
+      log(`E-Mail: ${mails.length} Mails gelesen`);
+    } catch (err) {
+      system += '\n\n' + mailLib.promptBlock([], { error: String(err.message).slice(0, 200), days: cfg.mail.days });
+      log(`E-Mail-Abruf fehlgeschlagen: ${String(err.message).slice(0, 120)}`);
+    }
+  }
   const t0 = Date.now();
   let firstAt = null;
 
@@ -355,6 +370,26 @@ ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
 
 ipcMain.handle('open:external', (_e, url) => {
   if (PROVIDERS.some((p) => p.keyUrl === url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
+});
+
+// ---------- E-Mail (nur lesen) ----------
+const mailCreds = () => ({ host: cfg.mail.host, port: cfg.mail.port, user: cfg.mail.user, pass: decrypt(cfg.mail.pass) });
+ipcMain.handle('mail:set', (_e, p = {}) => {
+  const m = cfg.mail;
+  if (typeof p.enabled === 'boolean') m.enabled = p.enabled;
+  if (typeof p.preset === 'string') m.preset = p.preset.slice(0, 20);
+  if (typeof p.host === 'string') m.host = p.host.trim().slice(0, 200);
+  if (Number.isInteger(p.port) && p.port > 0 && p.port < 65536) m.port = p.port;
+  if (typeof p.user === 'string') m.user = p.user.trim().slice(0, 200);
+  if (typeof p.pass === 'string' && p.pass) m.pass = encrypt(p.pass);
+  if (Number.isInteger(p.days)) m.days = Math.min(14, Math.max(1, p.days));
+  if (p.clearPass) { m.pass = ''; m.enabled = false; }
+  saveCfg();
+  return publicState();
+});
+ipcMain.handle('mail:test', async () => {
+  const list = await mailLib.fetchRecent(mailCreds(), { days: cfg.mail.days, max: 50, bodyChars: 50 });
+  return { total: list.length, unseen: list.filter((x) => x.unseen).length };
 });
 
 // ---------- Handy-Zugang ----------

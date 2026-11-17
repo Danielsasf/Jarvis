@@ -355,7 +355,8 @@ jarvis.onStatus((s) => {
   if (s.phase === 'slow') addStep(run.bubble, `Noch keine Antwort – frage zusätzlich ${short(s.provider)}`, true);
   if (s.phase === 'switch') addStep(run.bubble, `${short(s.failed)} ausgefallen – wechsle zu ${short(s.provider)}`, true);
   if (s.phase === 'pack') addStep(run.bubble, `Paket „${s.pack}“ aktiv`);
-  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› Paket/.test(d.textContent)) d.remove(); });
+  if (s.phase === 'mail') addStep(run.bubble, 'Lese deine E-Mails (nur lesen) …');
+  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› (Paket|Lese deine)/.test(d.textContent)) d.remove(); });
 });
 
 function autoGrow() {
@@ -639,6 +640,30 @@ $('importPack').onclick = async () => {
 };
 $('packFolder').onclick = () => jarvis.openPackFolder();
 
+const MAIL_PRESETS = { webde: ['imap.web.de', 993], gmx: ['imap.gmx.net', 993], gmail: ['imap.gmail.com', 993], outlook: ['outlook.office365.com', 993], icloud: ['imap.mail.me.com', 993] };
+function renderMail() {
+  const m = state.mail || {};
+  if (document.activeElement?.closest?.('[data-pane="mail"]') && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox') return; // nicht beim Tippen überschreiben
+  $('mailToggle').checked = !!m.enabled;
+  $('mailPreset').value = m.preset || 'webde';
+  $('mailHost').value = m.host || ''; $('mailPort').value = m.port || 993; $('mailUser').value = m.user || '';
+  $('mailDays').value = String(m.days || 3);
+  $('mailPassNote').textContent = m.hasPass ? 'Gespeichert (verschlüsselt). Leer lassen, um es zu behalten.' : 'Noch nichts gespeichert.';
+}
+$('mailPreset').onchange = (e) => { const p = MAIL_PRESETS[e.target.value]; if (p) { $('mailHost').value = p[0]; $('mailPort').value = p[1]; } };
+$('mailToggle').onchange = async (e) => { state = await jarvis.setMail({ enabled: e.target.checked }); renderAll(); };
+$('mailSave').onclick = async () => {
+  const st = $('mailStatus'); st.className = 'wake-status'; st.textContent = 'Teste Verbindung …';
+  try {
+    state = await jarvis.setMail({ preset: $('mailPreset').value, host: $('mailHost').value, port: parseInt($('mailPort').value, 10) || 993, user: $('mailUser').value, pass: $('mailPass').value, days: parseInt($('mailDays').value, 10) });
+    $('mailPass').value = '';
+    const r = await jarvis.testMail();
+    st.classList.add('ok'); st.textContent = `Verbindung klappt. In den letzten ${state.mail.days} Tagen: ${r.total} Mails, ${r.unseen} ungelesen. Schalte oben „E-Mail lesen erlauben“ ein.`;
+  } catch (err) { st.classList.add('err'); st.textContent = String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+  renderAll();
+};
+$('mailForget').onclick = async () => { if (confirm('E-Mail-Zugang von diesem PC löschen?')) { state = await jarvis.setMail({ clearPass: true }); $('mailStatus').textContent = ''; renderAll(); } };
+
 function renderRemote() {
   const r = state.remote || {};
   $('remoteToggle').checked = !!r.enabled;
@@ -775,6 +800,7 @@ function renderAll() {
   renderSidePacks();
   renderMemory();
   renderRemote();
+  renderMail();
   els.speakToggle.classList.toggle('off', !state.settings.speak);
   els.speakToggle.title = state.settings.speak ? 'Vorlesen: an' : 'Vorlesen: aus';
   updateReadouts();
