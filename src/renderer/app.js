@@ -356,7 +356,8 @@ jarvis.onStatus((s) => {
   if (s.phase === 'switch') addStep(run.bubble, `${short(s.failed)} ausgefallen – wechsle zu ${short(s.provider)}`, true);
   if (s.phase === 'pack') addStep(run.bubble, `Paket „${s.pack}“ aktiv`);
   if (s.phase === 'mail') addStep(run.bubble, 'Lese deine E-Mails (nur lesen) …');
-  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› (Paket|Lese deine)/.test(d.textContent)) d.remove(); });
+  if (s.phase === 'cal') addStep(run.bubble, 'Schaue in deinen Kalender (nur lesen) …');
+  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› (Paket|Lese deine|Schaue in)/.test(d.textContent)) d.remove(); });
 });
 
 function autoGrow() {
@@ -641,6 +642,25 @@ $('importPack').onclick = async () => {
 $('packFolder').onclick = () => jarvis.openPackFolder();
 
 const MAIL_PRESETS = { webde: ['imap.web.de', 993], gmx: ['imap.gmx.net', 993], gmail: ['imap.gmail.com', 993], outlook: ['outlook.office365.com', 993], icloud: ['imap.mail.me.com', 993] };
+function renderCal() {
+  const c = state.cal || {};
+  if (document.activeElement?.id === 'calUrl') return;
+  $('calToggle').checked = !!c.enabled; $('calDays').value = String(c.days || 7);
+  $('calUrlNote').textContent = c.hasUrl ? 'Gespeichert (verschlüsselt). Leer lassen, um sie zu behalten.' : 'Noch nichts gespeichert.';
+}
+$('calToggle').onchange = async (e) => { state = await jarvis.setCal({ enabled: e.target.checked }); renderAll(); };
+$('calSave').onclick = async () => {
+  const st = $('calStatus'); st.className = 'wake-status'; st.textContent = 'Teste Verbindung …';
+  try {
+    state = await jarvis.setCal({ url: $('calUrl').value, days: parseInt($('calDays').value, 10) });
+    $('calUrl').value = '';
+    const r = await jarvis.testCal();
+    st.classList.add('ok'); st.textContent = `Klappt. Für ${r.label}: ${r.total} Termine. Schalte oben „Kalender lesen erlauben“ ein.`;
+  } catch (err) { st.classList.add('err'); st.textContent = String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+  renderAll();
+};
+$('calForget').onclick = async () => { if (confirm('Kalender-Zugang von diesem PC löschen?')) { state = await jarvis.setCal({ clear: true }); $('calStatus').textContent = ''; renderAll(); } };
+
 function renderMail() {
   const m = state.mail || {};
   if (document.activeElement?.closest?.('[data-pane="mail"]') && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox') return; // nicht beim Tippen überschreiben
@@ -801,6 +821,7 @@ function renderAll() {
   renderMemory();
   renderRemote();
   renderMail();
+  renderCal();
   els.speakToggle.classList.toggle('off', !state.settings.speak);
   els.speakToggle.title = state.settings.speak ? 'Vorlesen: an' : 'Vorlesen: aus';
   updateReadouts();

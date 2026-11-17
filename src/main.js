@@ -13,6 +13,7 @@ const speed = require('./speed');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
+const calLib = require('./calendar');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -85,6 +86,7 @@ function normalize(c) {
   accountsLib.migrate(c);
   c.remote = { enabled: false, port: 8484, devices: [], ...(c.remote || {}) };
   if (!Array.isArray(c.remote.devices)) c.remote.devices = [];
+  c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
     race: true, hedgeSec: 5, speedOrder: true, ...(c.settings || {}) };
@@ -124,6 +126,7 @@ function publicState() {
       beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), instructions: p.instructions })),
     memory: memory.list(),
     remote: remoteInfo(),
+    cal: { enabled: cfg.cal.enabled, hasUrl: !!cfg.cal.url, days: cfg.cal.days },
     mail: { enabled: cfg.mail.enabled, preset: cfg.mail.preset, host: cfg.mail.host, port: cfg.mail.port, user: cfg.mail.user, hasPass: !!cfg.mail.pass, days: cfg.mail.days },
     settings: cfg.settings,
     providers: cfg.order.map((id) => {
@@ -275,6 +278,18 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     onStatus({ phase: 'pack', pack: invoked.name });
   }
   let system = buildSystem(invoked);
+  if (cfg.cal.enabled && cfg.cal.url && last?.role === 'user' && calLib.asksForCalendar(last.content)) {
+    onStatus({ phase: 'cal' });
+    const w = calLib.windowFor(last.content, cfg.cal.days);
+    try {
+      const evs = await calLib.fetchEvents(decrypt(cfg.cal.url), w.from, w.to);
+      system += '\n\n' + calLib.promptBlock(evs, { label: w.label });
+      log(`Kalender: ${evs.length} Termine gelesen`);
+    } catch (err) {
+      system += '\n\n' + calLib.promptBlock([], { error: String(err.message).slice(0, 200), label: w.label });
+      log(`Kalender-Abruf fehlgeschlagen: ${String(err.message).slice(0, 120)}`);
+    }
+  }
   if (cfg.mail.enabled && cfg.mail.pass && last?.role === 'user' && mailLib.asksForMail(last.content)) {
     onStatus({ phase: 'mail' });
     const unseenOnly = /ungelesen|neue\b/i.test(last.content) && !/alle/i.test(last.content);
@@ -390,6 +405,22 @@ ipcMain.handle('mail:set', (_e, p = {}) => {
 ipcMain.handle('mail:test', async () => {
   const list = await mailLib.fetchRecent(mailCreds(), { days: cfg.mail.days, max: 50, bodyChars: 50 });
   return { total: list.length, unseen: list.filter((x) => x.unseen).length };
+});
+
+// ---------- Kalender (nur lesen) ----------
+ipcMain.handle('cal:set', (_e, p = {}) => {
+  const c = cfg.cal;
+  if (typeof p.enabled === 'boolean') c.enabled = p.enabled;
+  if (typeof p.url === 'string' && p.url.trim()) c.url = encrypt(p.url.trim().slice(0, 2000));
+  if (Number.isInteger(p.days)) c.days = Math.min(30, Math.max(1, p.days));
+  if (p.clear) { c.url = ''; c.enabled = false; }
+  saveCfg();
+  return publicState();
+});
+ipcMain.handle('cal:test', async () => {
+  const w = calLib.windowFor('', cfg.cal.days);
+  const list = await calLib.fetchEvents(decrypt(cfg.cal.url), w.from, w.to);
+  return { total: list.length, label: w.label };
 });
 
 // ---------- Handy-Zugang ----------

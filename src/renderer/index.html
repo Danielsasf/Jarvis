@@ -96,6 +96,7 @@
         <button data-tab="system"><span>06</span>System &amp; Updates</button>
         <button data-tab="handy"><span>07</span>Handy</button>
         <button data-tab="mail"><span>08</span>E-Mail</button>
+        <button data-tab="kalender"><span>09</span>Kalender</button>
       </nav>
       <div class="settings-main">
         <button class="top-btn close" id="closeSettings" title="Schließen (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -200,6 +201,21 @@
           </div>
           <h3>Protokoll</h3>
           <pre id="log" class="log"></pre>
+        </section>
+
+        <section data-pane="kalender" class="hidden">
+          <h2>Kalender</h2>
+          <p class="muted">Jarvis kann deinen Kalender <b>nur lesen</b> („Was steht morgen an?“, „Habe ich Freitag Zeit?“). Termine anlegen oder verschieben kann er noch nicht – das kommt als nächstes Update, mit Bestätigung vor jeder Änderung. Die Adresse ist wie ein Passwort und wird verschlüsselt auf diesem PC gespeichert. Die Termine gehen für die Antwort an die KI, die gerade antwortet.</p>
+          <div class="setting">
+            <div><b>Kalender lesen erlauben</b><small>Abruf nur, wenn du nach Terminen fragst. Gilt auch für den Handy-Chat.</small></div>
+            <label class="switch"><input type="checkbox" id="calToggle"><span></span></label>
+          </div>
+          <div class="setting"><div><b>Geheime iCal-Adresse</b><small id="calUrlNote">Noch nichts gespeichert.</small></div><input type="password" id="calUrl" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" autocomplete="off"></div>
+          <div class="setting"><div><b>Standard-Zeitraum</b><small>Wenn du nicht „heute“ oder „morgen“ sagst</small></div>
+            <select id="calDays"><option value="3">3 Tage</option><option value="7">7 Tage</option><option value="14">14 Tage</option><option value="30">30 Tage</option></select></div>
+          <div class="row"><button class="primary" id="calSave">Speichern &amp; testen</button><button class="ghost" id="calForget">Zugang löschen</button></div>
+          <p class="wake-status" id="calStatus"></p>
+          <p class="muted"><b>So kommst du an die Adresse (Google Kalender, am PC im Browser):</b> calendar.google.com → Zahnrad → Einstellungen → links unter „Einstellungen für meine Kalender“ deinen Kalender wählen → „Kalender integrieren“ → <b>„Geheime Adresse im iCal-Format“</b> kopieren und hier einfügen. Funktioniert genauso mit anderen Kalendern, die eine iCal-Adresse anbieten (Apple, Outlook, Nextcloud …).</p>
         </section>
 
         <section data-pane="mail" class="hidden">
