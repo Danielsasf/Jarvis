@@ -7,6 +7,7 @@ const { CODE_VERSION, UPDATE_REPO } = require('./version');
 const updater = require('./updater');
 const packsLib = require('./packs');
 const { Memory, stripTags } = require('./memory');
+const { WakeWord } = require('./wake');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -33,6 +34,7 @@ const MEMORY_GUIDE = `Gedächtnis:
 
 let win;
 let memory;
+let wake;
 let packs = [];
 const userPackDir = () => path.join(app.getPath('userData'), 'pakete');
 const builtinPackDir = path.join(__dirname, 'packs');
@@ -77,7 +79,7 @@ function normalize(c) {
   c.order ||= [];
   for (const p of PROVIDERS) if (!c.order.includes(p.id)) c.order.push(p.id);
   c.order = c.order.filter((id) => PROVIDERS.some((p) => p.id === id));
-  c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, ...(c.settings || {}) };
+  c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1, ...(c.settings || {}) };
   // alte Standard-Persönlichkeit aus V1 automatisch auf die neue (ohne Emojis) heben
   if (c.settings.systemPrompt.startsWith(OLD_DEFAULT_START)) c.settings.systemPrompt = DEFAULT_SYSTEM;
   return c;
@@ -145,6 +147,7 @@ async function refreshModels(id, { exclude = [] } = {}) {
 
 // ---------- IPC ----------
 ipcMain.handle('state:get', () => publicState());
+ipcMain.handle('wake:get', () => wake?.state || { state: 'off' });
 
 ipcMain.handle('provider:connect', async (_e, id, key) => {
   const p = getProvider(id);
@@ -180,6 +183,11 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (typeof patch.systemPrompt === 'string') s.systemPrompt = patch.systemPrompt.trim() || DEFAULT_SYSTEM;
   if (typeof patch.speak === 'boolean') s.speak = patch.speak;
   if (typeof patch.autoUpdate === 'boolean') s.autoUpdate = patch.autoUpdate;
+  if (typeof patch.voice === 'string') s.voice = patch.voice.slice(0, 200);
+  if (Number.isFinite(patch.rate)) s.rate = Math.min(2, Math.max(0.5, patch.rate));
+  if (['low', 'mid', 'high'].includes(patch.wakeSens)) s.wakeSens = patch.wakeSens;
+  if (typeof patch.wakeWord === 'boolean') s.wakeWord = patch.wakeWord;
+  if ('wakeWord' in patch || 'wakeSens' in patch) wake?.set(s.wakeWord, s.wakeSens);
   if (Number.isFinite(patch.timeoutSec)) s.timeoutSec = Math.min(300, Math.max(10, patch.timeoutSec));
   if (patch.resetPrompt) s.systemPrompt = DEFAULT_SYSTEM;
   saveCfg();
@@ -358,6 +366,7 @@ function createWindow() {
     setTimeout(async () => {
       for (const id of activeChain()) if (!getProvider(id).local) refreshModels(id).catch(() => {});
       if (cfg.settings.autoUpdate) checkUpdate(false);
+      if (cfg.settings.wakeWord) wake.set(true, cfg.settings.wakeSens);
     }, 1500);
   });
 }
@@ -366,6 +375,11 @@ app.whenReady().then(() => {
   cfg = normalize(loadCfg());
   saveCfg();
   memory = new Memory(path.join(app.getPath('userData'), 'gedaechtnis.json'));
+  wake = new WakeWord({
+    dir: app.getPath('userData'), log,
+    onStatus: (st) => emit('wake:event', { type: 'status', ...st }),
+    onHit: (hit) => emit('wake:event', { type: 'hit', ...hit }),
+  });
   reloadPacks();
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));
   session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'media');
@@ -373,4 +387,5 @@ app.whenReady().then(() => {
   log(`Jarvis ${CODE_VERSION} gestartet`);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => { wake?.stop(); app.quit(); });
+app.on('before-quit', () => wake?.stop());

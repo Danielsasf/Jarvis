@@ -6,14 +6,13 @@ const els = {
   speakToggle: $('speakToggle'), newChat: $('newChat'), settings: $('settings'), scrim: $('scrim'), providerList: $('providerList'),
   systemPrompt: $('systemPrompt'), log: $('log'), toast: $('toast'), roLink: $('roLink'), roSpeed: $('roSpeed'), roCount: $('roCount'),
   roClock: $('roClock'), roMemory: $('roMemory'), suggest: $('suggest'), packList: $('packList'), memList: $('memList'), version: $('version'), updateBanner: $('updateBanner'), updateVersion: $('updateVersion'), updateInstall: $('updateInstall'),
-  updateInfo: $('updateInfo'), checkUpdate: $('checkUpdate'), autoUpdate: $('autoUpdate'), sessionInfo: $('sessionInfo'),
+  updateInfo: $('updateInfo'), checkUpdate: $('checkUpdate'), autoUpdate: $('autoUpdate'), roWake: $('roWake'), wakeStatus: $('wakeStatus'),
 };
 
 const hud = HUD.create($('core'));
 let state = null;
 let history = [];
 let current = null; // laufende Anfrage
-let session = 1;
 const openForms = new Set();
 
 // ---------- Hilfen ----------
@@ -27,7 +26,7 @@ function toast(text, ms = 3200) {
 }
 const MODE_LABEL = { idle: 'BEREIT', thinking: 'VERARBEITE', listening: 'HÖRE ZU', speaking: 'SPRECHE', error: 'FEHLER' };
 function setMode(mode, label) {
-  hud.setMode(mode);
+  hud.setMode(mode, label || MODE_LABEL[mode]);
   els.statusEl.className = `status ${mode}`;
   els.statusText.textContent = label || MODE_LABEL[mode];
 }
@@ -46,7 +45,7 @@ function updateReadouts() {
   els.roCount.textContent = String(connectedCount()).padStart(2, '0');
   const n = state.memory?.length || 0;
   els.roMemory.textContent = n === 1 ? '1 Eintrag' : `${n} Einträge`;
-  els.version.textContent = `SYSTEM v${state.version}`;
+  els.version.textContent = `v${state.version}`;
   els.updateInfo.textContent = `Installiert: Version ${state.version}`;
   els.autoUpdate.checked = state.settings.autoUpdate !== false;
 }
@@ -56,8 +55,9 @@ function updateWelcome() {
   els.chips.classList.toggle('hidden', none);
   els.welcomeHint.textContent = none
     ? 'Verbinde zuerst mindestens eine KI in den Systemeinstellungen.'
-    : 'Schreib eine Nachricht, klick aufs Mikrofon oder halte die Leertaste.';
+    : (state.settings.wakeWord ? 'Sag „Hey Jarvis“, schreib eine Nachricht oder tipp / für Pakete.' : 'Schreib eine Nachricht, halte die Leertaste zum Sprechen oder tipp / für Pakete.');
   els.welcome.classList.toggle('hidden', history.length > 0);
+  document.body.classList.toggle('chatting', history.length > 0);
   els.chips.innerHTML = activePacks().map((p) => `<button class="chip" data-cmd="${escapeHtml(p.befehl)}" title="${escapeHtml(p.beschreibung)}"><span class="sym">${escapeHtml(p.symbol || '◇')}</span>${escapeHtml(p.name)}</button>`).join('');
 }
 const activePacks = () => (state.packs || []).filter((p) => p.enabled && !p.error);
@@ -65,6 +65,8 @@ setInterval(() => { els.roClock.textContent = new Date().toLocaleTimeString('de-
 
 // ---------- Vorlesen ----------
 const speaker = new JarvisSpeech.Speaker({
+  voice: () => state?.settings?.voice || '',
+  rate: () => state?.settings?.rate || 1.1,
   onStart: () => settle(),
   onEnd: () => settle(),
   onWord: () => hud.bump(0.55 + Math.random() * 0.35),
@@ -212,7 +214,8 @@ function autoGrow() {
 // ---------- Spracheingabe ----------
 let recorder = null; let recording = false; let chunks = []; let micStream = null; let audioCtx = null; let meterRaf = 0;
 
-async function startRecording() {
+// auto = durch "Hey Jarvis" gestartet: stoppt selbst, wenn du fertig gesprochen hast
+async function startRecording({ auto = false } = {}) {
   if (recording || current) return;
   if (!state.providers.some((p) => p.stt && p.connected && p.enabled)) {
     toast('Für Spracheingabe bitte ChatGPT, Groq oder Gemini verbinden.', 4500);
@@ -242,11 +245,20 @@ async function startRecording() {
     an.fftSize = 512;
     audioCtx.createMediaStreamSource(micStream).connect(an);
     const data = new Uint8Array(an.fftSize);
+    let heard = false; let lastLoud = Date.now();
     const tick = () => {
       an.getByteTimeDomainData(data);
       let sum = 0;
       for (const v of data) sum += ((v - 128) / 128) ** 2;
-      hud.setLevel(Math.min(1, Math.sqrt(sum / data.length) * 4));
+      const lvl = Math.min(1, Math.sqrt(sum / data.length) * 4);
+      hud.setLevel(lvl);
+      if (auto && recording) {
+        const now = Date.now();
+        if (lvl > 0.12) { heard = true; lastLoud = now; }
+        if (heard && now - lastLoud > 1300) { stopRecording(); return; }          // fertig gesprochen
+        if (!heard && now - recorder.startedAt > 6000) { recorder.cancelled = true; stopRecording(); return; } // nichts gesagt
+        if (now - recorder.startedAt > 20000) { stopRecording(); return; }       // Sicherheitsgrenze
+      }
       meterRaf = requestAnimationFrame(tick);
     };
     tick();
@@ -263,6 +275,7 @@ function stopRecording() {
   micStream.getTracks().forEach((t) => t.stop());
 }
 async function onRecordingDone() {
+  if (recorder.cancelled) { settle(); toast('Ich habe nichts gehört.'); return; }
   if (Date.now() - recorder.startedAt < 400 || !chunks.length) { settle(); return; }
   setMode('thinking', 'VERSTEHE');
   try {
@@ -463,7 +476,6 @@ $('memAdd').onclick = async () => { const v = $('memInput').value.trim(); if (!v
 $('memInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('memAdd').click(); });
 $('memClear').onclick = async () => { if (confirm('Wirklich alles vergessen? Das kann nicht rückgängig gemacht werden.')) { state = await jarvis.clearMemory(); renderAll(); } };
 document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); });
-$('openPacks').onclick = () => openSettings('pakete');
 $('roMemoryBox').onclick = () => openSettings('gedaechtnis');
 
 // ---------- Befehls-Vorschläge beim Tippen von "/" ----------
@@ -488,7 +500,58 @@ els.input.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') els.suggest.classList.add('hidden');
 }, true);
 
+// ---------- Stimme & Weckwort ----------
+function fillVoices() {
+  const voices = speechSynthesis.getVoices().filter((v) => /^de/i.test(v.lang));
+  const cur = state?.settings?.voice || '';
+  $('voiceSelect').innerHTML = `<option value="">Automatisch (beste deutsche)</option>${voices.map((v) => `<option ${v.name === cur ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}`;
+}
+speechSynthesis.onvoiceschanged = fillVoices;
+function renderVoice() {
+  const st = state.settings;
+  $('speakSwitch').checked = !!st.speak;
+  $('wakeToggle').checked = !!st.wakeWord;
+  $('wakeSens').value = st.wakeSens || 'mid';
+  $('rateRange').value = st.rate || 1.1;
+  $('rateLabel').textContent = `${Number(st.rate || 1.1).toLocaleString('de-DE')}×`;
+  if (!$('voiceSelect').options.length) fillVoices();
+}
+$('speakSwitch').onchange = async (e) => { state = await jarvis.setSettings({ speak: e.target.checked }); if (!state.settings.speak) stopSpeaking(); renderAll(); };
+$('wakeToggle').onchange = async (e) => { state = await jarvis.setSettings({ wakeWord: e.target.checked }); renderAll(); };
+$('wakeSens').onchange = async (e) => { state = await jarvis.setSettings({ wakeSens: e.target.value }); };
+$('voiceSelect').onchange = async (e) => { state = await jarvis.setSettings({ voice: e.target.value }); };
+$('rateRange').oninput = (e) => { $('rateLabel').textContent = `${Number(e.target.value).toLocaleString('de-DE')}×`; };
+$('rateRange').onchange = async (e) => { state = await jarvis.setSettings({ rate: Number(e.target.value) }); };
+$('voiceTest').onclick = () => speaker.sayAll('Hallo, ich bin Jarvis. So klinge ich mit diesen Einstellungen.');
+
+function beep() {
+  try {
+    const ctx = new AudioContext(); const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(880, ctx.currentTime); o.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.25); o.onended = () => ctx.close();
+  } catch { /* egal */ }
+}
+const WAKE_TEXT = { off: ['aus', 'Weckwort aus.', ''], starting: ['startet …', 'Weckwort startet …', ''], ready: ['bereit', '', 'ok'], error: ['Fehler', '', 'err'], unsupported: ['–', '', 'err'] };
+function showWake(w) {
+  const [ro, txt, cls] = WAKE_TEXT[w.state] || WAKE_TEXT.off;
+  els.roWake.textContent = w.state === 'ready' ? 'hört zu' : ro;
+  els.wakeStatus.className = `wake-status ${cls}`;
+  els.wakeStatus.textContent = w.state === 'ready' ? `Bereit – sag „Hey Jarvis“, warte auf den Piep, dann sprich. (Erkennung: ${w.detail})`
+    : w.state === 'error' || w.state === 'unsupported' ? w.detail : txt;
+}
+jarvis.onWake((w) => {
+  if (w.type === 'status') { showWake(w); return; }
+  if (w.type === 'hit') {
+    if (current || recording || els.settings.classList.contains('open')) return;
+    stopSpeaking();
+    beep();
+    setTimeout(() => startRecording({ auto: true }), 180);
+  }
+});
+
 function renderAll() {
+  renderVoice();
   renderProviders();
   renderPacks();
   renderMemory();
@@ -534,7 +597,6 @@ els.scrim.onclick = closeSettings;
 els.newChat.onclick = () => {
   if (current) jarvis.stop(current.reqId);
   history = []; els.messages.innerHTML = ''; stopSpeaking(); updateWelcome(); els.input.focus();
-  session++; els.sessionInfo.textContent = `SITZUNG ${String(session).padStart(2, '0')}`;
 };
 els.speakToggle.onclick = async () => {
   state = await jarvis.setSettings({ speak: !state.settings.speak });
@@ -552,6 +614,7 @@ speechSynthesis.onvoiceschanged = () => {};
 (async () => {
   state = await jarvis.getState();
   renderAll();
+  showWake(await jarvis.getWake());
   els.input.focus();
   const before = connectedCount();
   state = await jarvis.detectLocal();

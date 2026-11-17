@@ -1,23 +1,22 @@
-// Animierter Hologramm-Kern (eigenes Design): Teilstrich-Ring, gegenläufige Bogenringe,
-// Sweep-Balken beim Nachdenken, Pegel-Puls beim Zuhören/Sprechen.
+// Gestochen scharfer HUD-Kern (eigenes Design): feine Linien statt Weichzeichner.
+// Gradskala, gegenläufige Messringe, Segment-Pegel, Fadenkreuz, scharfer Kern.
 (() => {
   const PALETTE = {
-    idle: [58, 214, 255], thinking: [120, 230, 255], listening: [255, 170, 60], speaking: [80, 225, 255], error: [255, 90, 90],
+    idle: [72, 220, 255], thinking: [150, 236, 255], listening: [255, 176, 64], speaking: [96, 228, 255], error: [255, 92, 92],
   };
-  const SPEED = { idle: 1, thinking: 3.2, listening: 1.6, speaking: 1.8, error: 0.6 };
+  const SPEED = { idle: 1, thinking: 3.4, listening: 1.5, speaking: 1.8, error: 0.5 };
+  const TAU = Math.PI * 2;
 
   function create(canvas) {
-    let compact = false;
     const ctx = canvas.getContext('2d');
     let mode = 'idle';
     let level = 0; let targetLevel = 0;
-    let col = [...PALETTE.idle];
-    let speed = 1;
-    let t = 0; let last = performance.now();
-    const particles = Array.from({ length: 26 }, () => ({ a: Math.random() * Math.PI * 2, r: 0.55 + Math.random() * 0.4, s: (Math.random() - 0.5) * 0.6, z: Math.random() }));
+    const col = [...PALETTE.idle];
+    let speed = 1; let t = 0; let last = performance.now();
+    let label = 'BEREIT';
 
     function size() {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
       const w = canvas.clientWidth; const h = canvas.clientHeight;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
         canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
@@ -25,83 +24,109 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       return [w, h];
     }
-    const rgba = (a) => `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${a})`;
-
-    function arc(cx, cy, r, a0, a1, width, alpha) {
-      ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.lineWidth = width; ctx.strokeStyle = rgba(alpha); ctx.stroke();
-    }
+    const c = (a) => `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${a})`;
+    const ring = (x, y, r, w, a, dash) => {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.lineWidth = w; ctx.strokeStyle = c(a);
+      ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+    };
+    const arc = (x, y, r, a0, a1, w, a) => { ctx.beginPath(); ctx.arc(x, y, r, a0, a1); ctx.lineWidth = w; ctx.strokeStyle = c(a); ctx.stroke(); };
+    const tick = (x, y, a, r0, r1, w, al) => {
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+      ctx.lineWidth = w; ctx.strokeStyle = c(al); ctx.stroke();
+    };
 
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       const target = PALETTE[mode];
-      for (let i = 0; i < 3; i++) col[i] += (target[i] - col[i]) * Math.min(1, dt * 5);
+      for (let i = 0; i < 3; i++) col[i] += (target[i] - col[i]) * Math.min(1, dt * 6);
       speed += (SPEED[mode] - speed) * Math.min(1, dt * 3);
-      level += (targetLevel - level) * Math.min(1, dt * 12);
+      level += (targetLevel - level) * Math.min(1, dt * 14);
       if (mode !== 'listening') targetLevel *= 0.9;
       t += dt * speed;
 
       const [w, h] = size();
-      const cx = w / 2; const cy = h / 2; const R = Math.min(w, h) / 2 - 2;
-      compact = R < 60;
+      const x = w / 2; const y = h / 2; const R = Math.min(w, h) / 2 - 4;
       ctx.clearRect(0, 0, w, h);
       ctx.lineCap = 'butt';
-      ctx.shadowBlur = compact ? 4 : 12; ctx.shadowColor = rgba(0.8);
+      const small = R < 70;
 
-      // Teilstrich-Ring
-      if (!compact) {
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 0.08);
-        for (let i = 0; i < 120; i++) {
-          const a = (i / 120) * Math.PI * 2;
-          const long = i % 10 === 0;
-          const r1 = R * 0.97; const r0 = R * (long ? 0.90 : 0.935);
-          ctx.beginPath(); ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
-          ctx.lineWidth = long ? 1.6 : 0.8; ctx.strokeStyle = rgba(long ? 0.75 : 0.35); ctx.stroke();
+      // 1) Gradskala (fest): 180 Striche, alle 30° beschriftet
+      if (!small) {
+        for (let i = 0; i < 180; i++) {
+          const a = (i / 180) * TAU - Math.PI / 2;
+          const major = i % 15 === 0; const mid = i % 5 === 0;
+          tick(x, y, a, R * (major ? 0.905 : mid ? 0.93 : 0.945), R * 0.97, major ? 1.4 : 1, major ? 0.95 : mid ? 0.6 : 0.3);
         }
-        ctx.restore();
+        ctx.font = `${Math.max(8, R * 0.045)}px "Cascadia Mono", Consolas, monospace`;
+        ctx.fillStyle = c(0.7); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        for (let d = 0; d < 360; d += 30) {
+          const a = (d / 360) * TAU - Math.PI / 2;
+          ctx.fillText(String(d).padStart(3, '0'), x + Math.cos(a) * R * 0.86, y + Math.sin(a) * R * 0.86);
+        }
+        ring(x, y, R * 0.985, 1, 0.35);
       }
-      // Bogenringe (gegenläufig)
-      const rings = compact
-        ? [[0.86, 0.6, 3, [[0, 1.2], [1.6, 2.6], [3.4, 4.9]]], [0.66, -0.9, 2, [[0.4, 2.2], [3.2, 5.6]]]]
-        : [[0.82, 0.35, 3, [[0, 0.9], [1.2, 2.5], [2.9, 3.2], [3.6, 5.3]]], [0.72, -0.55, 1.5, [[0.2, 1.7], [2.3, 4.1], [4.6, 6.0]]],
-          [0.62, 0.8, 6, [[0, 0.5], [0.9, 1.1], [2.1, 3.4], [4.2, 4.5], [5.0, 5.8]]], [0.52, -1.3, 1, [[0, 6.28]]]];
-      for (const [rr, sp, wd, segs] of rings) {
-        const rot = t * sp;
-        for (const [a0, a1] of segs) arc(cx, cy, R * rr, a0 + rot, a1 + rot, wd, wd > 4 ? 0.55 : 0.8);
+      // 2) Rotierender Messring mit Lücken und Markierungen
+      const r2 = R * (small ? 0.9 : 0.8);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.22);
+      for (const [a0, a1] of [[0.05, 1.3], [1.45, 2.05], [2.2, 3.9], [4.05, 4.45], [4.6, 6.1]]) arc(0, 0, r2, a0, a1, small ? 2 : 1.6, 0.9);
+      for (let i = 0; i < 6; i++) tick(0, 0, (i / 6) * TAU, r2 - 6, r2 + 6, 1.2, 0.9);
+      ctx.restore();
+      // 3) Gestrichelter Ring gegenläufig
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.35);
+      ring(0, 0, R * (small ? 0.74 : 0.73), 1, 0.55, [2, 5]);
+      ctx.restore();
+      // 4) Segment-Ring: Anzahl leuchtender Segmente = Pegel/Aktivität
+      const segs = small ? 24 : 48;
+      const r4 = R * (small ? 0.62 : 0.66);
+      const lit = mode === 'thinking' ? null : Math.round(Math.min(1, 0.18 + level) * segs);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.08);
+      for (let i = 0; i < segs; i++) {
+        const a0 = (i / segs) * TAU; const a1 = a0 + (TAU / segs) * 0.62;
+        let on;
+        if (lit === null) { const head = (t * 1.6) % 1 * segs; on = ((i - head + segs) % segs) < segs * 0.3 ? 0.95 - (((i - head + segs) % segs) / (segs * 0.3)) * 0.75 : 0.12; }
+        else on = i < lit ? 0.9 : 0.14;
+        arc(0, 0, r4, a0, a1, small ? 3 : 5, on);
       }
-      // Sweep beim Nachdenken
-      if (speed > 1.9) {
-        const a = t * 2.2;
-        const g = ctx.createConicGradient ? ctx.createConicGradient(a, cx, cy) : null;
-        if (g) {
-          g.addColorStop(0, rgba(0.35)); g.addColorStop(0.12, rgba(0)); g.addColorStop(1, rgba(0));
-          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R * 0.9, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+      ctx.restore();
+      // 5) Innenringe + Fadenkreuz
+      if (!small) {
+        ring(x, y, R * 0.57, 1, 0.5);
+        ring(x, y, R * 0.47, 1, 0.3, [1, 3]);
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * TAU;
+          tick(x, y, a, R * 0.3, R * 0.44, 1, 0.55);
+          // kleine Dreiecke außen
+          const ax = x + Math.cos(a) * R * 0.6; const ay = y + Math.sin(a) * R * 0.6;
+          ctx.save(); ctx.translate(ax, ay); ctx.rotate(a + Math.PI / 2);
+          ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(0, -6); ctx.closePath(); ctx.fillStyle = c(0.85); ctx.fill();
+          ctx.restore();
+        }
+        // Sweep beim Nachdenken: scharfe Linie
+        if (speed > 2) {
+          const a = t * 2.4;
+          tick(x, y, a, R * 0.32, R * 0.78, 1.5, 0.95);
+          arc(x, y, R * 0.78, a - 0.5, a, 1.5, 0.6);
         }
       }
-      // Kern
-      const pulse = 1 + level * 0.35 + Math.sin(now / 900) * 0.025;
-      const cr = R * (compact ? 0.42 : 0.34) * pulse;
-      ctx.shadowBlur = compact ? 10 : 40;
-      const grad = ctx.createRadialGradient(cx - cr * 0.25, cy - cr * 0.3, cr * 0.05, cx, cy, cr);
-      grad.addColorStop(0, 'rgba(235,252,255,0.95)'); grad.addColorStop(0.35, rgba(0.9)); grad.addColorStop(0.8, rgba(0.25)); grad.addColorStop(1, rgba(0));
-      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
-      ctx.shadowBlur = 0;
-      if (!compact) {
-        // Pegel-Ring
-        arc(cx, cy, R * 0.43, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, level), 2.5, 0.9);
-        // Partikel
-        for (const p of particles) {
-          p.a += p.s * dt * speed;
-          const r = R * p.r;
-          ctx.beginPath(); ctx.arc(cx + Math.cos(p.a) * r, cy + Math.sin(p.a) * r, 0.6 + p.z * 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = rgba(0.25 + p.z * 0.5); ctx.fill();
-        }
+      // 6) Kern: scharfer Rand, heller Mittelpunkt
+      const pulse = 1 + level * 0.28 + Math.sin(now / 1000) * 0.015;
+      const cr = R * (small ? 0.42 : 0.24) * pulse;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, cr);
+      g.addColorStop(0, 'rgba(240,253,255,1)'); g.addColorStop(0.45, c(0.95)); g.addColorStop(0.92, c(0.55)); g.addColorStop(1, c(0.55));
+      ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill();
+      ring(x, y, cr + 3, 1, 0.9);
+      ring(x, y, cr + 7, 1, 0.35);
+      if (!small) {
+        ctx.font = `600 ${Math.max(8, R * 0.042)}px "Bahnschrift", "Segoe UI", sans-serif`;
+        ctx.fillStyle = c(0.9); ctx.textAlign = 'center';
+        ctx.fillText(label, x, y + R * 0.38);
       }
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
 
     return {
-      setMode(m) { if (PALETTE[m]) mode = m; },
+      setMode(m, text) { if (PALETTE[m]) mode = m; if (text) label = text; },
       setLevel(v) { targetLevel = Math.max(0, Math.min(1, v)); },
       bump(v = 0.6) { targetLevel = Math.max(targetLevel, v); },
     };

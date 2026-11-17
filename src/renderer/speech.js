@@ -19,15 +19,16 @@
       .trim();
   }
 
-  function pickVoice() {
+  function pickVoice(name) {
     const voices = speechSynthesis.getVoices();
+    if (name) { const v = voices.find((x) => x.name === name); if (v) return v; }
     return voices.find((v) => /^de/i.test(v.lang) && /natural|online|neural/i.test(v.name))
       || voices.find((v) => /de-DE/i.test(v.lang)) || voices.find((v) => /^de/i.test(v.lang)) || null;
   }
 
   class Speaker {
-    constructor({ onStart, onEnd, onWord } = {}) {
-      Object.assign(this, { onStart, onEnd, onWord });
+    constructor({ onStart, onEnd, onWord, voice = () => '', rate = () => 1.1 } = {}) {
+      Object.assign(this, { onStart, onEnd, onWord, voiceOf: voice, rateOf: rate });
       this.reset();
     }
     reset() { this.buf = ''; this.inCode = false; this.pending = ''; this.queued = 0; this.spokeAny = false; this.active = false; }
@@ -75,10 +76,10 @@
       this.pending = '';
       this.spokeAny = true;
       const u = new SpeechSynthesisUtterance(text);
-      const v = pickVoice();
+      const v = pickVoice(this.voiceOf());
       if (v) u.voice = v;
       u.lang = 'de-DE';
-      u.rate = 1.1;
+      u.rate = Number(this.rateOf()) || 1.1;
       this.queued++;
       u.onstart = () => { if (!this.active) { this.active = true; this.onStart?.(); } };
       u.onboundary = () => this.onWord?.();

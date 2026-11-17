@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   addMemory: (text) => call('memory:add', text),
   removeMemory: (id) => call('memory:remove', id),
   clearMemory: () => call('memory:clear'),
+  getWake: () => call('wake:get'),
+  onWake: on('wake:event'),
   onLog: on('jarvis:log'),
   onState: on('jarvis:state'),
   onDelta: on('chat:delta'),
