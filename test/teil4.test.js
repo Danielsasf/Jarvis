@@ -104,3 +104,11 @@ test('Chats: speichern, laden, löschen, leere werden nicht gespeichert', () => 
   s.remove('c3');
   assert.deepEqual(new ChatStore(file).all().map((c) => c.id), ['c1']);
 });
+
+test('Chat-Suche: Oberfläche enthält Suchfeld und Filterlogik', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../src/renderer/index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  assert.match(html, /id="chatSearch"/);
+  assert.match(js, /function searchHit/);
+  assert.match(js, /Nichts gefunden für/);
+});

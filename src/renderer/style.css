@@ -298,3 +298,10 @@ body.packs-off .side-packs { display: none; }
 .add-form { margin-top: 12px; padding: 12px; border: 1px solid var(--accent); background: var(--accent-bg); display: flex; flex-direction: column; gap: 8px; }
 .add-form input[type=text], .add-form input[type=password] { flex: 1; min-width: 0; }
 @media (max-width: 860px) { .side { position: fixed; left: 0; top: 56px; bottom: 0; z-index: 8; width: 260px; } }
+
+.side-search { position: relative; margin: 4px 12px 0; }
+.side-search input { width: 100%; padding: 6px 26px 6px 10px; font-size: 12.5px; }
+.side-search button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; color: var(--muted); font-size: 16px; line-height: 1; }
+.side-search button:hover { color: var(--accent); }
+.chat-item { flex-wrap: wrap; }
+.chat-item .sn { flex: 0 0 100%; font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

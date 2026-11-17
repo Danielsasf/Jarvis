@@ -1,4 +1,4 @@
 {
-  "version": "2.3.0",
-  "notes": "Seitenleiste mit gespeicherten Chats, beliebig viele KIs, schnellere Antworten (Rennen, Tempo-Sortierung), schmalere Schreibleiste"
+  "version": "2.4.0",
+  "notes": "Chat-Suche in der Seitenleiste (Strg+K)"
 }

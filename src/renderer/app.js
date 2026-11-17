@@ -194,19 +194,38 @@ function dayLabel(ts) {
   if (diff < 31) return 'Dieser Monat';
   return 'Älter';
 }
+let chatQuery = '';
+// Treffer in Titel oder Nachrichten; liefert einen kurzen Textausschnitt
+function searchHit(c, q) {
+  if (c.title.toLowerCase().includes(q)) return { snippet: '' };
+  for (const m of c.messages) {
+    const i = m.content.toLowerCase().indexOf(q);
+    if (i !== -1) {
+      const from = Math.max(0, i - 24);
+      const text = m.content.slice(from, i + q.length + 40).replace(/\s+/g, ' ');
+      return { snippet: `${from > 0 ? '…' : ''}${text}…` };
+    }
+  }
+  return null;
+}
 function renderChatList() {
   const box = els.chatList;
   box.innerHTML = '';
   sortChats();
+  const q = chatQuery.trim().toLowerCase();
   let lastGroup = '';
+  let shown = 0;
   for (const c of chats) {
-    const group = c.messages.length ? dayLabel(c.updated) : 'Jetzt';
+    let hit = null;
+    if (q) { hit = searchHit(c, q); if (!hit) continue; }
+    shown++;
+    const group = q ? 'Treffer' : (c.messages.length ? dayLabel(c.updated) : 'Jetzt');
     if (group !== lastGroup) { const g = document.createElement('div'); g.className = 'chat-group'; g.textContent = group; box.appendChild(g); lastGroup = group; }
     const row = document.createElement('div');
     row.className = `chat-item${c.id === activeId ? ' on' : ''}`;
     row.title = c.title;
     const running = runs.has(c.id);
-    row.innerHTML = `<span class="t">${escapeHtml(c.title)}</span>${running ? '<i class="dot run" title="Antwortet gerade"></i>' : (c.unread ? '<i class="dot" title="Neue Antwort"></i>' : '')}<button class="x" title="Chat löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+    row.innerHTML = `<span class="t">${escapeHtml(c.title)}</span>${running ? '<i class="dot run" title="Antwortet gerade"></i>' : (c.unread ? '<i class="dot" title="Neue Antwort"></i>' : '')}<button class="x" title="Chat löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${hit?.snippet ? `<span class="sn">${escapeHtml(hit.snippet)}</span>` : ''}`;
     row.addEventListener('click', (e) => {
       if (e.target.closest('.x')) { if (!c.messages.length || confirm(`Chat „${c.title}“ löschen?`)) deleteChat(c.id); return; }
       if (e.target.tagName === 'INPUT') return;
@@ -224,6 +243,7 @@ function renderChatList() {
     });
     box.appendChild(row);
   }
+  if (q && !shown) box.innerHTML = `<p class="muted" style="padding:8px">Nichts gefunden für „${escapeHtml(chatQuery.trim())}“.</p>`;
 }
 function renderSidePacks() {
   els.sidePacks.innerHTML = activePacks().map((p) => `<button class="side-pack" data-cmd="${escapeHtml(p.befehl)}" title="${escapeHtml(p.beschreibung)}"><span class="sym">${escapeHtml(p.symbol || '◇')}</span>${escapeHtml(p.name)}<code>${escapeHtml(p.befehl)}</code></button>`).join('')
@@ -749,6 +769,10 @@ els.input.addEventListener('input', autoGrow);
 els.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 els.sidePacks.addEventListener('click', (e) => { const c = e.target.closest('.side-pack'); if (c) { els.input.value = `${c.dataset.cmd} `; els.input.focus(); updateSuggest(); } });
 $('packsTitle').onclick = () => { const off = document.body.classList.toggle('packs-off'); $('packsCaret').textContent = off ? '▸' : '▾'; };
+$('chatSearch').addEventListener('input', (e) => { chatQuery = e.target.value; $('chatSearchClear').classList.toggle('hidden', !chatQuery); renderChatList(); });
+$('chatSearch').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); $('chatSearchClear').click(); } });
+$('chatSearchClear').onclick = () => { $('chatSearch').value = ''; chatQuery = ''; $('chatSearchClear').classList.add('hidden'); renderChatList(); };
+window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.body.classList.remove('side-off'); $('chatSearch').focus(); $('chatSearch').select(); } });
 $('sideToggle').onclick = () => document.body.classList.toggle('side-off');
 $('sideMemory').onclick = () => openSettings('gedaechtnis');
 $('sideSettings').onclick = () => openSettings();
