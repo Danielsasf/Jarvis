@@ -6,7 +6,7 @@
   const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 
   function buildGraph({ packs = [], memory = [], providers = [], chats = [], version = '' } = {}) {
-    const nodes = [{ id: 'hub', type: 'hub', label: 'Jarvis', text: `Version ${version || '–'}`, r: 13 }];
+    const nodes = [{ id: 'hub', type: 'hub', label: 'Jarvis', text: `Version ${version || '–'}`, r: 18 }];
     const edges = []; const seen = new Set();
     const link = (a, b) => { const k = a < b ? `${a}|${b}` : `${b}|${a}`; if (a !== b && !seen.has(k)) { seen.add(k); edges.push([a, b]); } };
     for (const p of packs) {

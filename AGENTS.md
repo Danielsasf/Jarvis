@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.21.0 (Claude): Netz-Ansicht: Hauptpunkt als 3D-Kern (hub3d in netz.js).
 - 2.20.0 (Claude): Kern 3D (hud.js): Kugelgitter, Ikosaeder innen, gekippte Bahnen mit Satelliten; Kern größer (style.css .core-wrap), Alpha +20 %.
 - 2.19.0 (Claude): Netz-Ansicht (Knopf #netzToggle, Body-Klasse view-netz): src/renderer/graph.js (Graph + Layout, getestet in test/teil12), src/renderer/netz.js (Zeichnen + Panels). Sterne, Punkte je Paket/KI/Erinnerung/Chat, Klick-Fokus, Zoom/Ziehen, Aktivitäts-Log. HUD zeichnet nicht mehr bei versteckter Fläche.
 - 2.18.0 (Claude): Fokus-Ansicht – Verlauf/Eingabe/Seitenleiste per Knopf (Standard: Verlauf zu, Seitenleiste zu), mitlaufende Schrift (#live), Status-Block in den Einstellungen; Bestätigungskarten öffnen den Verlauf automatisch. Zustand in localStorage 'jarvis.ui'.

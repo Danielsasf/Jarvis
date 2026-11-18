@@ -37,6 +37,31 @@
     return best;
   }
 
+  // 3D-Kern für den Hauptpunkt: Kugelgitter, Kristall innen, gekippte Bahnen mit Lichtpunkten
+  function hub3d(x, y, r, t, c, dim) {
+    const rot = (px, py, pz, ay, ax) => { const cy = Math.cos(ay); const sy = Math.sin(ay); const X = px * cy + pz * sy; let Z = -px * sy + pz * cy; const cx = Math.cos(ax); const sx = Math.sin(ax); const Y = py * cx - Z * sx; Z = py * sx + Z * cx; return [X, Y, Z]; };
+    const P = (v, rad) => { const k = 1 / (1 - v[2] * 0.2); return [x + v[0] * rad * k, y + v[1] * rad * k, v[2]]; };
+    const seg = (a, b, w, al, col) => { const z = (a[2] + b[2]) / 2; const o = Math.max(0.06, Math.min(1, al * (0.4 + 0.6 * (z + 1) / 2) * (z > 0 ? 1.15 : 0.55))) * dim; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineWidth = w; ctx.strokeStyle = `rgba(${col},${o})`; ctx.stroke(); };
+    const orbits = [[1.7, 1.2, 1.1], [2.1, -0.4, -0.8]]; const ay0 = t * 0.5;
+    const orbit = (front) => orbits.forEach(([rf, tilt, sp], oi) => {
+      let prev = null; const ay = t * sp * 0.6;
+      for (let i = 0; i <= 56; i++) { const a = (i / 56) * 6.2832; const pt = P(rot(Math.cos(a), 0, Math.sin(a), ay, tilt), r * rf); if (prev && ((prev[2] + pt[2]) / 2 > 0) === front) seg(prev, pt, front ? 1.6 : 1, 0.9, '150,235,255'); prev = pt; }
+      const sa = t * (1.7 + oi * 0.5) * (oi ? -1 : 1); const q = P(rot(Math.cos(sa), 0, Math.sin(sa), ay, tilt), r * rf);
+      if ((q[2] > 0) === front) { ctx.save(); ctx.shadowColor = 'rgba(150,235,255,1)'; ctx.shadowBlur = 10; ctx.fillStyle = `rgba(245,254,255,${dim})`; ctx.beginPath(); ctx.arc(q[0], q[1], front ? 3.2 : 2.2, 0, 6.2832); ctx.fill(); ctx.restore(); }
+    });
+    orbit(false);
+    ctx.save(); ctx.shadowColor = rgba(c, 0.9 * dim); ctx.shadowBlur = 24;
+    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.05, x, y, r);
+    g.addColorStop(0, `rgba(240,253,255,${0.95 * dim})`); g.addColorStop(0.5, `rgba(96,200,255,${0.6 * dim})`); g.addColorStop(1, `rgba(40,120,200,${0.2 * dim})`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); ctx.restore();
+    for (let m = 0; m < 6; m++) { const lon = (m / 6) * Math.PI; let prev = null; for (let i = 0; i <= 36; i++) { const a = (i / 36) * 6.2832; const pt = P(rot(Math.cos(a) * Math.cos(lon), Math.sin(a), Math.cos(a) * Math.sin(lon), ay0, 0.4), r); if (prev) seg(prev, pt, 1, 0.8, '4,28,44'); prev = pt; } }
+    for (let l = 1; l <= 4; l++) { const lat = (l / 5) * Math.PI - Math.PI / 2; const rr = Math.cos(lat); let prev = null; for (let i = 0; i <= 36; i++) { const a = (i / 36) * 6.2832; const pt = P(rot(Math.cos(a) * rr, Math.sin(lat), Math.sin(a) * rr, ay0, 0.4), r); if (prev) seg(prev, pt, 1, 0.8, '4,28,44'); prev = pt; } }
+    const V = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((v) => P(rot(v[0], v[1], v[2], -t * 1.2, t * 0.8), r * 0.6));
+    for (let i = 0; i < 6; i++) for (let j = i + 1; j < 6; j++) if (!((i ^ j) === 1 && i % 2 === 0)) seg(V[i], V[j], 1.3, 1, '250,255,255');
+    ctx.save(); ctx.shadowColor = '#fff'; ctx.shadowBlur = 12; ctx.fillStyle = `rgba(255,255,255,${dim})`; ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, 6.2832); ctx.fill(); ctx.restore();
+    orbit(true);
+  }
+
   function draw(now) {
     if (!running) return;
     requestAnimationFrame(draw);
@@ -70,7 +95,8 @@
       const grow = n.fresh ? Math.max(0, 1 - (now - n.fresh) / 1600) : 0;
       const r = n.r * view.s * (n.id === (selected && selected.id) ? 1.25 : 1) * (1 + grow * 0.8);
       const pulse = n.type === 'hub' ? 1 + Math.sin(t * 2) * 0.06 : 1;
-      ctx.save(); ctx.shadowColor = rgba(c, 0.9 * dim); ctx.shadowBlur = (n.type === 'hub' ? 22 : 10) * (1 + grow * 2);
+      if (n.type === 'hub') { hub3d(x, y, r * 1.5 * pulse, t, c, dim); continue; }
+      ctx.save(); ctx.shadowColor = rgba(c, 0.9 * dim); ctx.shadowBlur = 10 * (1 + grow * 2);
       ctx.fillStyle = rgba(c, dim); ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, 6.2832); ctx.fill(); ctx.restore();
       if (grow > 0) { ctx.strokeStyle = rgba(c, grow * 0.8); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r + (1 - grow) * 34, 0, 6.2832); ctx.stroke(); }
       if (n.type === 'hub') { ctx.strokeStyle = rgba(c, 0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r + 8 + Math.sin(t * 1.4) * 2, 0, 6.2832); ctx.stroke(); }
@@ -82,7 +108,7 @@
       if (!show || !lit(n)) continue;
       const [x, y] = toScreen(n);
       ctx.fillStyle = n === focus ? '#ffffff' : 'rgba(210,240,255,.85)';
-      ctx.fillText(n.label, x, y + n.r * view.s + 6);
+      ctx.fillText(n.label, x, y + n.r * view.s * (n.type === 'hub' ? 2.1 : 1) + 6);
     }
   }
 

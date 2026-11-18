@@ -1,4 +1,4 @@
 {
-  "version": "2.20.0",
-  "notes": "Look: Kern deutlich größer und 3D – Kugel mit Gitter dreht sich, Kristall im Inneren dreht gegenläufig, drei gekippte Bahnen mit Lichtpunkten kreisen außen herum. Linien schärfer und heller."
+  "version": "2.21.0",
+  "notes": "Look: Netz-Ansicht – der Kern in der Mitte ist jetzt auch 3D (drehende Kugel, Kristall innen, kreisende Bahnen)."
 }
