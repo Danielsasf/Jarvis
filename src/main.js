@@ -670,6 +670,37 @@ ipcMain.handle('packs:delete', (_e, id) => {
 });
 ipcMain.handle('packs:folder', () => shell.openPath(userPackDir()));
 
+// Paket als PDF speichern: Anzeige-Seite bauen, drucken, Speichern-Dialog
+const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+function packPdfHtml(p) {
+  const ex = (p.beispiele || []).map((b) => `<li>${escHtml(b)}</li>`).join('');
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${escHtml(p.name)}</title><style>
+    body{font-family:Segoe UI,Arial,sans-serif;color:#111;margin:0;padding:0 8px;line-height:1.5}
+    h1{font-size:22pt;margin:0 0 4px}.cmd{font-family:Consolas,monospace;color:#0a6e8a;font-size:12pt}
+    .desc{color:#444;margin:6px 0 14px}h2{font-size:12pt;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}
+    pre{white-space:pre-wrap;font-family:Consolas,monospace;font-size:10pt;background:#f4f7f9;padding:10px;border-radius:4px}
+    ul{margin:0;padding-left:18px}.foot{margin-top:24px;font-size:8pt;color:#777}</style></head><body>
+    <h1>${escHtml(p.name)}</h1><div class="cmd">${escHtml(p.befehl)}</div>
+    <div class="desc">${escHtml(p.beschreibung)}</div>
+    ${ex ? `<h2>Beispiele</h2><ul>${ex}</ul>` : ''}
+    <h2>Anweisungen</h2><pre>${escHtml(p.instructions)}</pre>
+    <div class="foot">Jarvis-Paket · Version ${escHtml(CODE_VERSION)}</div></body></html>`;
+}
+ipcMain.handle('packs:pdf', async (_e, id) => {
+  const p = packs.find((x) => x.id === id && !x.error);
+  if (!p) throw new Error('Paket nicht gefunden.');
+  const r = await dialog.showSaveDialog(win, { title: 'Paket als PDF speichern', defaultPath: `${p.id}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  if (r.canceled || !r.filePath) return { saved: false };
+  const hidden = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, javascript: false } });
+  try {
+    await hidden.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(packPdfHtml(p)));
+    const pdf = await hidden.webContents.printToPDF({ printBackground: true, pageSize: 'A4' });
+    fs.writeFileSync(r.filePath, pdf);
+  } finally { hidden.destroy(); }
+  log(`Paket „${p.name}“ als PDF gespeichert`);
+  return { saved: true, file: r.filePath };
+});
+
 // ---------- Gedächtnis ----------
 ipcMain.handle('memory:add', (_e, text) => { memory.add(text, 'du'); return publicState(); });
 ipcMain.handle('memory:remove', (_e, id) => { memory.remove(id); return publicState(); });

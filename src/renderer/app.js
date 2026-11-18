@@ -703,6 +703,7 @@ function renderPacks() {
           <label class="switch" title="An/aus"><input type="checkbox" ${p.enabled ? 'checked' : ''}><span></span></label></div>
          <div class="row end">${p.builtin ? '<span class="badge">Eingebaut</span><button class="link" data-act="copy">Als Vorlage kopieren</button>'
           : '<button class="link" data-act="edit">Bearbeiten</button><button class="danger" data-act="del">Löschen</button>'}
+          <button class="link" data-act="pdf">Als PDF</button>
           <button class="ghost small" data-act="use">Benutzen</button></div>`;
     card.querySelector('input[type=checkbox]')?.addEventListener('change', async (e) => { state = await jarvis.togglePack(p.id, e.target.checked); renderAll(); });
     card.addEventListener('click', async (e) => {
@@ -710,6 +711,7 @@ function renderPacks() {
       if (act === 'use') { closeSettings(); els.input.value = `${p.befehl} `; els.input.focus(); }
       if (act === 'edit') openEditor(p, false);
       if (act === 'copy') openEditor(p, true);
+      if (act === 'pdf') { try { const r = await jarvis.packPdf(p.id); if (r.saved) toast('PDF gespeichert ✓'); } catch (err) { toast(err.message, 5000); } }
       if (act === 'del' && confirm(`Paket „${p.name}“ wirklich löschen?`)) { state = await jarvis.deletePack(p.id); renderAll(); }
     });
     els.packList.appendChild(card);

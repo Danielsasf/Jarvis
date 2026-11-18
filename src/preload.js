@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   importPack: () => call('packs:import'),
   deletePack: (id) => call('packs:delete', id),
   openPackFolder: () => call('packs:folder'),
+  packPdf: (id) => call('packs:pdf', id),
   addMemory: (text) => call('memory:add', text),
   removeMemory: (id) => call('memory:remove', id),
   clearMemory: () => call('memory:clear'),
