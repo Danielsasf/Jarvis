@@ -274,9 +274,10 @@ body.side-off .side { display: none; }
 .chat-item input { flex: 1; min-width: 0; padding: 2px 6px; font-size: 13px; }
 .chat-item .dot { width: 6px; height: 6px; flex: none; background: var(--accent); }
 .chat-item .dot.run { background: var(--warm); animation: blink 1s steps(2) infinite; }
-.chat-item .x { display: none; width: 20px; height: 20px; place-items: center; color: var(--dim); flex: none; }
-.chat-item .x svg { width: 12px; height: 12px; }
-.chat-item:hover .x { display: grid; } .chat-item .x:hover { color: var(--bad); }
+.chat-item .x, .chat-item .save { display: none; width: 20px; height: 20px; place-items: center; color: var(--dim); flex: none; }
+.chat-item .x svg, .chat-item .save svg { width: 12px; height: 12px; }
+.chat-item:hover .x, .chat-item:hover .save { display: grid; }
+.chat-item .x:hover { color: var(--bad); } .chat-item .save:hover { color: var(--accent); }
 .side-packs { max-height: 30vh; overflow-y: auto; padding: 0 6px 6px; }
 body.packs-off .side-packs { display: none; }
 .side-pack { display: flex; gap: 8px; align-items: baseline; width: 100%; padding: 5px 8px; font-size: 12.5px; color: var(--muted); text-align: left; }

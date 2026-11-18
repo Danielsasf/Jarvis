@@ -39,6 +39,8 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.12.0 (Freebuff + Claude): Chat-Export (Speichern-Knopf in der Seitenleiste); Mail-TLS setzt servername nicht bei IP-Adressen (Tests auf neuerem Node).
+- 2.11.1 (Buffy, Zweig freebuff-arbeit, ohne Versionserhöhung): Chat-Export – Chat aus der Seitenleiste als Textdatei speichern (Speichern-Dialog, nur der gewählte Pfad). Neu: `src/chatExport.js`, `test/teil10.test.js`.
 - 2.11.1 (Claude): Weckwort toleranter + Diagnose-Anzeige "Zuletzt gehört".
 - 2.11.0 (Claude): Look – hellere/größere Schrift, ruhigerer HUD, kompakter im Chat.
 - 2.5.0–2.10.0 (Claude): Handy-Zugang, Handy-Sprache, E-Mail lesen, Kalender lesen/schreiben, Benachrichtigungen.

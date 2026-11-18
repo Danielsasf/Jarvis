@@ -210,6 +210,16 @@ function renderMessages(chat) {
   }
   scrollDown(true);
 }
+async function exportChat(c) {
+  if (!c.messages.length) { toast('Dieser Chat hat noch keine Nachrichten.'); return; }
+  try {
+    const r = await jarvis.exportChat({
+      title: c.title, created: c.created, updated: c.updated,
+      messages: c.messages.map(({ role, content, by }) => ({ role, content, by })),
+    });
+    if (r?.saved) toast('Chat gespeichert');
+  } catch (err) { toast(`Speichern fehlgeschlagen: ${err.message}`, 5000); }
+}
 function deleteChat(id) {
   const run = runs.get(id);
   if (run) jarvis.stop(run.reqId);
@@ -263,14 +273,15 @@ function renderChatList() {
     row.className = `chat-item${c.id === activeId ? ' on' : ''}`;
     row.title = c.title;
     const running = runs.has(c.id);
-    row.innerHTML = `<span class="t">${escapeHtml(c.title)}</span>${running ? '<i class="dot run" title="Antwortet gerade"></i>' : (c.unread ? '<i class="dot" title="Neue Antwort"></i>' : '')}<button class="x" title="Chat löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${hit?.snippet ? `<span class="sn">${escapeHtml(hit.snippet)}</span>` : ''}`;
+    row.innerHTML = `<span class="t">${escapeHtml(c.title)}</span>${running ? '<i class="dot run" title="Antwortet gerade"></i>' : (c.unread ? '<i class="dot" title="Neue Antwort"></i>' : '')}<button class="save" title="Als Textdatei speichern"><svg viewBox="0 0 24 24"><path d="M12 4v10M7 9l5 5 5-5M5 20h14"/></svg></button><button class="x" title="Chat löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${hit?.snippet ? `<span class="sn">${escapeHtml(hit.snippet)}</span>` : ''}`;
     row.addEventListener('click', (e) => {
+      if (e.target.closest('.save')) { exportChat(c); return; }
       if (e.target.closest('.x')) { if (!c.messages.length || confirm(`Chat „${c.title}“ löschen?`)) deleteChat(c.id); return; }
       if (e.target.tagName === 'INPUT') return;
       switchChat(c.id);
     });
     row.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.x') || !c.messages.length) return;
+      if (e.target.closest('.x') || e.target.closest('.save') || !c.messages.length) return;
       const t = row.querySelector('.t');
       const inp = document.createElement('input');
       inp.type = 'text'; inp.value = c.title; inp.maxLength = 80;

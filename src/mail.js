@@ -131,7 +131,7 @@ class Imap {
 
 function connect({ host, port = 993, timeoutMs = 15000 }) {
   return new Promise((resolve, reject) => {
-    const sock = tls.connect({ host, port, servername: host, rejectUnauthorized: true, ...(connect.tlsOptions || {}) });
+    const sock = tls.connect({ host, port, ...(require("net").isIP(host) ? {} : { servername: host }), rejectUnauthorized: true, ...(connect.tlsOptions || {}) });
     sock.setTimeout(timeoutMs, () => sock.destroy(new Error('Der Mail-Server antwortet nicht (Zeitüberschreitung).')));
     sock.once('secureConnect', () => resolve(sock));
     sock.once('error', reject);
