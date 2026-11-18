@@ -1036,13 +1036,15 @@ $('chatSearchClear').onclick = () => { $('chatSearch').value = ''; chatQuery = '
 window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.body.classList.remove('side-off'); $('chatSearch').focus(); $('chatSearch').select(); } });
 // Schmale Fenster: Seitenleiste ist eine Schublade und soll den Chat nicht verdecken.
 const sideAuto = { hidden: false };
-const syncSideDrawer = () => {
-  if (window.innerWidth < 861) {
+const syncSideDrawer = (narrow = window.innerWidth < 861) => {
+  if (narrow) {
     if (!document.body.classList.contains('side-off')) { document.body.classList.add('side-off'); sideAuto.hidden = true; }
   } else if (sideAuto.hidden) { document.body.classList.remove('side-off'); sideAuto.hidden = false; }
 };
-window.addEventListener('resize', syncSideDrawer);
-syncSideDrawer();
+const narrowMq = window.matchMedia('(max-width: 860px)');
+narrowMq.addEventListener('change', (e) => syncSideDrawer(e.matches));
+window.addEventListener('resize', () => syncSideDrawer());
+syncSideDrawer(narrowMq.matches);
 $('sideToggle').onclick = () => { sideAuto.hidden = false; document.body.classList.toggle('side-off'); };
 $('sideMemory').onclick = () => openSettings('gedaechtnis');
 $('sideSettings').onclick = () => openSettings();
