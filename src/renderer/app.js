@@ -63,7 +63,15 @@ function updateWelcome() {
   document.body.classList.toggle('chatting', !empty);
 }
 const activePacks = () => (state.packs || []).filter((p) => p.enabled && !p.error);
-setInterval(() => { els.roClock.textContent = new Date().toLocaleTimeString('de-DE'); }, 1000);
+const topClockEl = document.getElementById('topClock');
+const topDateEl = document.getElementById('topDate');
+const tickClock = () => {
+  const now = new Date();
+  els.roClock.textContent = now.toLocaleTimeString('de-DE');
+  if (topClockEl) topClockEl.textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (topDateEl) topDateEl.textContent = now.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/[.,]/g, '').toUpperCase();
+};
+setInterval(tickClock, 1000); tickClock();
 
 // ---------- Vorlesen ----------
 const speaker = new JarvisSpeech.Speaker({
