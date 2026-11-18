@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 3.2.0 (Claude): websearch.js: needsWeb (Schlüsselwörter), search via DuckDuckGo-HTML (kein Schlüssel), parseResults/realLink (nur https), promptBlock. runChat sucht bei aktuellen Fragen (phase web), Schalter settings.webSearch (Standard an). Test teil18.
 - 3.1.3 (Claude): Spracheingabe nutzt health.arrange und noteFailure (Pause bei leerem Guthaben), maxRetries 0, klare Meldung bei aufgebrauchtem Limit.
 - 3.1.2 (Claude): history.js cleanHistory: Verlauf beginnt mit Nutzer, gleiche Rollen zusammengeführt, leere Einträge raus (gegen Ablehnungen von Anthropic/Gemini). Test teil17.
 - 3.1.1 (Claude): LANGUAGE_GUIDE in buildSystem (main.js): feste Deutsch-Regeln gegen Sprachfehler/Fremdsprachen-Mix kleiner KIs.

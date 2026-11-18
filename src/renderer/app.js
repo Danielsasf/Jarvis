@@ -481,7 +481,8 @@ jarvis.onStatus((s) => {
   if (s.phase === 'pack') addStep(run.bubble, `Paket „${s.pack}“ aktiv`);
   if (s.phase === 'mail') addStep(run.bubble, 'Lese deine E-Mails (nur lesen) …');
   if (s.phase === 'cal') addStep(run.bubble, 'Schaue in deinen Kalender (nur lesen) …');
-  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› (Paket|Lese deine|Schaue in)/.test(d.textContent)) d.remove(); });
+  if (s.phase === 'web') addStep(run.bubble, 'Suche kurz im Internet …');
+  if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› (Paket|Lese deine|Schaue in|Suche kurz)/.test(d.textContent)) d.remove(); });
 });
 
 function autoGrow() {
@@ -757,6 +758,7 @@ function openEditor(p = null, asCopy = false) {
   $('peName').focus();
 }
 
+$('webToggle').addEventListener('change', async (e) => { state = await jarvis.setSettings({ webSearch: e.target.checked }); });
 $('newsToggle').addEventListener('change', async (e) => { state = await jarvis.setNews(e.target.checked); window.refreshNews?.(); });
 $('newPack').onclick = () => openEditor();
 $('peCancel').onclick = () => $('packEditor').classList.add('hidden');
@@ -998,6 +1000,7 @@ $('fontRange').onchange = async (e) => {
   renderAll();
 };
 function renderWeather() {
+  if ($('webToggle')) $('webToggle').checked = state.settings?.webSearch !== false;
   if ($('newsToggle')) $('newsToggle').checked = state.news?.enabled !== false;
   const w = state.weather || {};
   if (document.activeElement !== $('wxCity')) $('wxCity').value = w.city || '';

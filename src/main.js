@@ -15,6 +15,7 @@ const accountsLib = require('./accounts');
 const speed = require('./speed');
 const healthLib = require('./health');
 const historyLib = require('./history');
+const webLib = require('./websearch');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
@@ -113,7 +114,7 @@ function normalize(c) {
   const oldS = c.settings || {};
   const hadSettings = Object.keys(oldS).length > 0;
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 25, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
-    race: false, hedgeSec: 5, speedOrder: false, sequential: true, fontSize: 14.5, ...oldS };
+    race: false, hedgeSec: 5, speedOrder: false, sequential: true, webSearch: true, fontSize: 14.5, ...oldS };
   // Einmalig (3.1.0): bestehende Einstellungen auf "eine KI nach der anderen" umstellen
   if (hadSettings && oldS.sequential === undefined) {
     c.settings.sequential = true;
@@ -290,6 +291,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if ('wakeWord' in patch || 'wakeSens' in patch) wake?.set(s.wakeWord, s.wakeSens);
   if (typeof patch.race === 'boolean') s.race = patch.race;
   if (typeof patch.sequential === 'boolean') s.sequential = patch.sequential;
+  if (typeof patch.webSearch === 'boolean') s.webSearch = patch.webSearch;
   if (typeof patch.speedOrder === 'boolean') s.speedOrder = patch.speedOrder;
   if (Number.isFinite(patch.hedgeSec)) s.hedgeSec = Math.min(30, Math.max(0, Math.round(patch.hedgeSec)));
   if (Number.isFinite(patch.timeoutSec)) s.timeoutSec = Math.min(300, Math.max(10, patch.timeoutSec));
@@ -326,6 +328,18 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     onStatus({ phase: 'pack', pack: invoked.name });
   }
   let system = buildSystem(invoked);
+  // Aktuelle Fragen: erst im Internet suchen (kostenlos), die Treffer mit Quellen gehen an die KI
+  if (cfg.settings.webSearch !== false && last?.role === 'user' && webLib.needsWeb(last.content)) {
+    onStatus({ phase: 'web' });
+    try {
+      const found = await webLib.search(last.content, fetch);
+      const block = webLib.promptBlock(found);
+      if (block) system += '\n\n' + block;
+      log(`Websuche „${found.query}“: ${found.items.length} Treffer`);
+    } catch (err) {
+      log(`Websuche fehlgeschlagen: ${String(err.message).slice(0, 120)}`);
+    }
+  }
   const gc = cfg.cal.enabled ? getGcal() : null;
   const wantsCal = last?.role === 'user' && (calLib.asksForCalendar(last.content) || calLib.asksToChange(last.content));
   if (cfg.cal.enabled && (cfg.cal.url || gc) && wantsCal) {
