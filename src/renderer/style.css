@@ -537,6 +537,34 @@ body.packs-off .side-packs { display: none; }
 .proposal .p-row.ok { color: var(--ok); font-family: var(--mono); font-size: 12px; }
 .proposal .p-row.muted { color: var(--dim); font-size: 12px; }
 
+/* ---------- Feinschliff: runde Pods, Lichtkanten, Litfaßleisten ---------- */
+.topbar { position: relative; }
+.topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(47, 212, 255, .6) 14%, rgba(47, 212, 255, .12) 55%, transparent); }
+.side::before { content: ""; position: absolute; right: 7px; top: 98px; bottom: 108px; width: 3px; pointer-events: none; opacity: .4;
+  background: repeating-linear-gradient(180deg, rgba(47, 212, 255, .6) 0 5px, transparent 5px 11px); }
+.gauge { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), inset 0 0 0 1px rgba(47, 212, 255, .05), 0 10px 26px -22px #000; }
+.mic, .send { position: relative; width: 44px; height: 44px; border-radius: 50%; clip-path: none; }
+.mic::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1px solid rgba(47, 212, 255, .3); pointer-events: none; }
+.send { box-shadow: 0 0 0 1px rgba(47, 212, 255, .5), 0 0 24px -6px rgba(47, 212, 255, .8); }
+.send::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1px solid rgba(4, 16, 24, .45); pointer-events: none; }
+.status { position: relative; overflow: hidden; }
+.status::after { content: ""; position: absolute; top: 0; bottom: 0; width: 38%; left: -45%;
+  background: linear-gradient(90deg, transparent, rgba(47, 212, 255, .22), transparent); animation: sweep 4s linear infinite; }
+@keyframes sweep { to { left: 105%; } }
+.core-wrap { width: clamp(214px, 45vh, 436px); height: clamp(214px, 45vh, 436px); }
+body.chatting .core-wrap { width: clamp(132px, 23vh, 212px); height: clamp(132px, 23vh, 212px); }
+
+.gauge dt { padding-right: 48px; }
+.gauges.left .gauge dt { padding-right: 0; padding-left: 0; }
+.gauge dt::after { position: absolute; top: 7px; right: 12px; font-family: var(--mono); font-size: 8px; letter-spacing: .1em; color: var(--dim); }
+.gauges .gauge:nth-child(1) dt::after { content: "SYS·01"; }
+.gauges .gauge:nth-child(2) dt::after { content: "SYS·02"; }
+.gauges .gauge:nth-child(3) dt::after { content: "SYS·03"; }
+.gauges.right .gauge:nth-child(1) dt::after { content: "SYS·04"; }
+.gauges.right .gauge:nth-child(2) dt::after { content: "SYS·05"; }
+.gauges.right .gauge:nth-child(3) dt::after { content: "SYS·06"; }
+
 /* ---------- schmale Fenster ---------- */
 @media (max-width: 1040px) {
   .stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 14px; padding-top: 8px; }
