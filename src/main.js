@@ -14,6 +14,7 @@ const { WakeWord } = require('./wake');
 const accountsLib = require('./accounts');
 const speed = require('./speed');
 const healthLib = require('./health');
+const historyLib = require('./history');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
@@ -314,10 +315,7 @@ ipcMain.handle('local:detect', async () => {
 // Eine Antwort erzeugen (PC-Fenster und Handy-Zugang nutzen dieselbe Funktion).
 // onStatus(payload) / onDelta(text) melden den Fortschritt; abortSignal bricht ab.
 async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abortSignal = new AbortController().signal, canPropose = false } = {}) {
-  const clean = (messages || [])
-    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .map((m) => ({ role: m.role, content: m.content }))
-    .slice(-30);
+  const clean = historyLib.cleanHistory(messages).slice(-30);
   // "/befehl …" ruft ein Paket auf
   let invoked = null;
   const last = clean[clean.length - 1];

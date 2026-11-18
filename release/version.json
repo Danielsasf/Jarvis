@@ -1,4 +1,4 @@
 {
-  "version": "3.1.1",
-  "notes": "Bessere Sprache: Jarvis gibt allen KIs feste Regeln für korrektes Deutsch (keine Fremdwörter, Umlaute, Grammatik)."
+  "version": "3.1.2",
+  "notes": "Verlauf wird vor dem Senden bereinigt: beginnt mit deiner Nachricht, gleiche Rollen zusammengeführt. Dadurch kommen Antworten von manchen KIs wieder durch."
 }
