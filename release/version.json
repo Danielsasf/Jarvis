@@ -1,4 +1,4 @@
 {
-  "version": "2.15.0",
-  "notes": "Look-Update: Ring-Anzeigen (CPU, Speicher, Uhrzeit, Datum), Tagesleiste, leuchtender Kern mit Lichtpunkten, Hintergrund-Effekte. Im Chat bleibt alles kompakt."
+  "version": "2.16.0",
+  "notes": "Neu: Wetter-Widget links neben dem Kern (Ort unter Einstellungen > System & Updates > Wetter eintragen). Kostenlos, ohne Schlüssel."
 }

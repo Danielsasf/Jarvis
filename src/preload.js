@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onRemoteChat: on('chats:remote'),
   getWake: () => call('wake:get'),
   getStats: () => call('sys:stats'),
+  getWeather: () => call('weather:get'),
+  setWeather: (city) => call('weather:set', city),
   onWake: on('wake:event'),
   onLog: on('jarvis:log'),
   onState: on('jarvis:state'),

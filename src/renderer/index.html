@@ -49,6 +49,7 @@
         <div class="gauge"><dt>Reaktion</dt><dd id="roSpeed">—</dd></div>
         <div class="gauge"><dt>KIs aktiv</dt><dd id="roCount">00</dd></div>
       </dl>
+      <div class="wx" id="wx" title="Wetter – Klick öffnet die Einstellungen"></div>
     </div>
     <div class="core-wrap">
       <canvas id="core"></canvas>
@@ -209,6 +210,11 @@
           <div class="setting">
             <div><b>Beim Start automatisch prüfen</b></div>
             <label class="switch"><input type="checkbox" id="autoUpdate"><span></span></label>
+          </div>
+          <h3>Wetter</h3>
+          <div class="setting">
+            <div><b>Ort für das Wetter-Widget</b><small id="wxStatus">Kein Ort eingestellt. Nur der Ortsname geht an open-meteo.com.</small></div>
+            <div class="row"><input type="text" id="wxCity" placeholder="z. B. Hamburg" maxlength="80"><button class="ghost small" id="wxSave">Speichern</button></div>
           </div>
           <h3>Darstellung</h3>
           <div class="setting">

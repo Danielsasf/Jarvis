@@ -18,6 +18,7 @@ const gcalLib = require('./gcal');
 const notifyLib = require('./notify');
 const os = require('os');
 const chatExport = require('./chatExport');
+const weatherLib = require('./weather');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -96,6 +97,7 @@ function normalize(c) {
   if (!c.notify.topic) c.notify.topic = notifyLib.newTopic();
   c.gcal = { clientId: '', clientSecret: '', refresh: '', ...(c.gcal || {}) };
   c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
+  c.weather = { city: '', name: '', lat: null, lon: null, ...(c.weather || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
     race: true, hedgeSec: 5, speedOrder: true, fontSize: 14.5, ...(c.settings || {}) };
@@ -141,6 +143,7 @@ function publicState() {
     gcal: { clientId: cfg.gcal.clientId, hasSecret: !!cfg.gcal.clientSecret, connected: !!cfg.gcal.refresh },
     cal: { enabled: cfg.cal.enabled, hasUrl: !!cfg.cal.url, days: cfg.cal.days },
     mail: { enabled: cfg.mail.enabled, preset: cfg.mail.preset, host: cfg.mail.host, port: cfg.mail.port, user: cfg.mail.user, hasPass: !!cfg.mail.pass, days: cfg.mail.days },
+    weather: { city: cfg.weather.city, name: cfg.weather.name, set: Number.isFinite(cfg.weather.lat) },
     settings: cfg.settings,
     providers: cfg.order.map((id) => {
       const acc = cfg.accounts[id];
@@ -606,6 +609,27 @@ ipcMain.handle('sys:stats', () => {
   lastCpu = now;
   const cpu = total > 0 ? Math.round((1 - idle / total) * 100) : 0;
   return { cpu: Math.max(0, Math.min(100, cpu)), ram: Math.round((1 - os.freemem() / os.totalmem()) * 100) };
+});
+
+// ---------- Wetter (Open-Meteo, kostenlos, ohne Schlüssel) ----------
+let weatherCache = null;
+ipcMain.handle('weather:get', async () => {
+  if (!Number.isFinite(cfg.weather.lat)) return { set: false };
+  if (weatherCache && Date.now() - weatherCache.at < 20 * 60 * 1000 && weatherCache.key === `${cfg.weather.lat},${cfg.weather.lon}`) return { set: true, ...weatherCache.data };
+  try {
+    const data = await weatherLib.forecast(cfg.weather);
+    weatherCache = { at: Date.now(), key: `${cfg.weather.lat},${cfg.weather.lon}`, data };
+    return { set: true, ...data };
+  } catch (e) {
+    return weatherCache ? { set: true, stale: true, ...weatherCache.data } : { set: true, error: String(e.message || e) };
+  }
+});
+ipcMain.handle('weather:set', async (_e, city) => {
+  if (!String(city || '').trim()) { cfg.weather = { city: '', name: '', lat: null, lon: null }; weatherCache = null; saveCfg(); return publicState(); }
+  const place = await weatherLib.geocode(city);
+  cfg.weather = place; weatherCache = null; saveCfg();
+  log(`Wetter-Ort: ${place.name}`);
+  return publicState();
 });
 
 // ---------- Pakete ----------

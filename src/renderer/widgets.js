@@ -50,6 +50,31 @@
   async function pollStats() {
     try { const s = await window.jarvis.getStats(); if (s) { stats.cpu = s.cpu; stats.ram = s.ram; drawStats(); } } catch { /* egal */ }
   }
+  const WX_ICON = {
+    sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>',
+    cloud: '<path d="M7 18.5h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 9.4 4.6 4.6 0 0 0 7 18.5z"/>',
+    rain: '<path d="M7 15h10a3.8 3.8 0 0 0 .5-7.55A5.2 5.2 0 0 0 7.2 6.6 4.2 4.2 0 0 0 7 15z"/><path d="M8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5"/>',
+    snow: '<path d="M7 14.5h10a3.8 3.8 0 0 0 .5-7.55A5.2 5.2 0 0 0 7.2 6.1 4.2 4.2 0 0 0 7 14.5z"/><path d="M8.5 18.5h.01M12.5 19.5h.01M16.5 18.5h.01M10.5 21h.01M14.5 21h.01"/>',
+    fog: '<path d="M5 9h14M3.5 13h17M6 17h12"/>',
+    storm: '<path d="M7 14h10a3.8 3.8 0 0 0 .5-7.55A5.2 5.2 0 0 0 7.2 5.6 4.2 4.2 0 0 0 7 14z"/><path d="M12.5 14l-2.5 4h3l-2 4"/>',
+  };
+  const wxSvg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WX_ICON[k] || WX_ICON.cloud}</svg>`;
+  const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  async function drawWeather() {
+    const el = $('wx'); if (!el) return;
+    let w; try { w = await window.jarvis.getWeather(); } catch { w = { error: 'Nicht erreichbar' }; }
+    if (!w || !w.set) { el.innerHTML = '<div class="wx-empty">Wetter<br><small>Ort einstellen</small></div>'; return; }
+    if (w.error) { el.innerHTML = `<div class="wx-empty">Wetter<br><small>${esc(w.error)}</small></div>`; return; }
+    const days = (w.days || []).slice(1, 4).map((d) => {
+      const [y, m, dd] = String(d.date).split('-').map(Number);
+      return `<div class="wx-day"><span>${WD[new Date(y, m - 1, dd).getDay()]}</span>${wxSvg(d.icon)}<b>${esc(d.max)}°</b><i>${esc(d.min)}°</i></div>`;
+    }).join('');
+    el.innerHTML = `<div class="wx-now">${wxSvg(w.icon)}<div><strong>${esc(w.temp)}°</strong><small>${esc(w.text)}</small></div></div>`
+      + `<div class="wx-place">${esc(w.place)}${w.stale ? ' · alt' : ''}</div>`
+      + `<div class="wx-meta">Wind ${esc(w.wind)} km/h · Feuchte ${esc(w.humidity)}%</div><div class="wx-days">${days}</div>`;
+  }
+  window.refreshWeather = drawWeather;
   function dayStrip() {
     const el = $('dayStrip'); if (!el) return;
     const d = new Date(); const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
@@ -92,6 +117,7 @@
   function start() {
     dayStrip(); drawClock(); drawStats(); fx();
     setInterval(drawClock, 1000); setInterval(pollStats, 2500); setInterval(dayStrip, 3600000); pollStats();
+    drawWeather(); setInterval(drawWeather, 20 * 60 * 1000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

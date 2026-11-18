@@ -917,6 +917,20 @@ $('fontRange').onchange = async (e) => {
   state = await jarvis.setSettings({ fontSize: Number(e.target.value) });
   renderAll();
 };
+function renderWeather() {
+  const w = state.weather || {};
+  if (document.activeElement !== $('wxCity')) $('wxCity').value = w.city || '';
+  $('wxStatus').textContent = w.set ? `Aktuell: ${w.name}. Nur der Ortsname geht an open-meteo.com.` : 'Kein Ort eingestellt. Nur der Ortsname geht an open-meteo.com.';
+}
+async function saveWeather() {
+  $('wxSave').disabled = true;
+  try { state = await jarvis.setWeather($('wxCity').value); renderWeather(); window.refreshWeather?.(); toast(state.weather.set ? `Wetter-Ort: ${state.weather.name}` : 'Wetter-Ort entfernt.'); }
+  catch (e) { toast(String(e.message || e).replace(/^Error invoking remote method '[^']*': (Error: )?/, '')); }
+  $('wxSave').disabled = false;
+}
+$('wxSave').onclick = saveWeather;
+$('wxCity').onkeydown = (e) => { if (e.key === 'Enter') saveWeather(); };
+$('wx').onclick = () => openSettings('system');
 $('voiceTest').onclick = () => speaker.sayAll('Hallo, ich bin Jarvis. So klinge ich mit diesen Einstellungen.');
 
 function beep() {
@@ -953,6 +967,7 @@ jarvis.onWake((w) => {
 function renderAll() {
   renderVoice();
   renderFont();
+  renderWeather();
   renderProviders();
   renderPacks();
   renderSidePacks();
