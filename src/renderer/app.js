@@ -897,12 +897,17 @@ const WAKE_TEXT = { off: ['aus', 'Weckwort aus.', ''], starting: ['startet …',
 function showWake(w) {
   const [ro, txt, cls] = WAKE_TEXT[w.state] || WAKE_TEXT.off;
   els.roWake.textContent = w.state === 'ready' ? 'hört zu' : ro;
-  els.wakeStatus.className = `wake-status ${cls}`;
+  els.wakeStatus.className = `wake-status ${cls}`; els.wakeStatus.style.whiteSpace = 'pre-line'; if (w.state !== 'ready') delete els.wakeStatus.dataset.heard;
   els.wakeStatus.textContent = w.state === 'ready' ? `Bereit – sag „Hey Jarvis“, warte auf den Piep, dann sprich. (Erkennung: ${w.detail})`
     : w.state === 'error' || w.state === 'unsupported' ? w.detail : txt;
 }
+function showHeard() {
+  const h = els.wakeStatus.dataset.heard; if (!h || !/^Bereit/.test(els.wakeStatus.textContent.split('\n')[0])) return;
+  els.wakeStatus.textContent = els.wakeStatus.textContent.split('\n')[0] + '\n' + h;
+}
 jarvis.onWake((w) => {
   if (w.type === 'status') { showWake(w); return; }
+  if (w.type === 'heard') { els.wakeStatus.dataset.heard = `Zuletzt gehört: „${w.text}“ (Sicherheit ${w.confidence})`; showHeard(); return; }
   if (w.type === 'hit') {
     if (runs.has(activeId) || recording || els.settings.classList.contains('open')) return;
     stopSpeaking();

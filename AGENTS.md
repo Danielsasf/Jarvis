@@ -39,5 +39,6 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.11.1 (Claude): Weckwort toleranter + Diagnose-Anzeige "Zuletzt gehört".
 - 2.11.0 (Claude): Look – hellere/größere Schrift, ruhigerer HUD, kompakter im Chat.
 - 2.5.0–2.10.0 (Claude): Handy-Zugang, Handy-Sprache, E-Mail lesen, Kalender lesen/schreiben, Benachrichtigungen.

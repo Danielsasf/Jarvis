@@ -687,6 +687,7 @@ app.whenReady().then(() => {
     dir: app.getPath('userData'), log,
     onStatus: (st) => emit('wake:event', { type: 'status', ...st }),
     onHit: (hit) => emit('wake:event', { type: 'hit', ...hit }),
+    onHeard: (h) => emit('wake:event', { type: 'heard', ...h }),
   });
   reloadPacks();
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));

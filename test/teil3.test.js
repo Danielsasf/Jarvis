@@ -83,5 +83,6 @@ test('PowerShell-Skript: Weckwort-Grammatik, Diktat-Fang, Schwelle', () => {
   assert.match(SCRIPT, /'Hey Jarvis'/);
   assert.match(SCRIPT, /DictationGrammar/);
   assert.match(SCRIPT, /\$r\.Grammar\.Name -eq 'wake' -and \$r\.Confidence -ge \$Min/);
+  assert.match(SCRIPT, /HEARD:/);
   assert.match(SCRIPT, /SetInputToDefaultAudioDevice/);
 });

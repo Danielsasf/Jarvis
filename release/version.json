@@ -1,4 +1,4 @@
 {
-  "version": "2.11.0",
-  "notes": "Look: bessere Lesbarkeit (hellere, größere Schrift), ruhigerer HUD ohne doppelte Beschriftung, kompakterer HUD im Chat"
+  "version": "2.11.1",
+  "notes": "Weckwort: toleranter erkannt (Jarvis auch als Diktat) und Anzeige \"Zuletzt gehört\" in Einstellungen > Stimme"
 }

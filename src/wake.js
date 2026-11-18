@@ -32,8 +32,12 @@ try {
   [Console]::Out.WriteLine('READY:' + $info.Culture.Name)
   while ($true) {
     $r = $eng.Recognize([TimeSpan]::FromSeconds(30))
-    if ($r -ne $null -and $r.Grammar.Name -eq 'wake' -and $r.Confidence -ge $Min) {
-      [Console]::Out.WriteLine('WAKE:' + [Math]::Round($r.Confidence, 2) + ':' + $r.Text)
+    if ($r -ne $null) {
+      $c = [Math]::Round($r.Confidence, 2)
+      [Console]::Out.WriteLine('HEARD:' + $c + ':' + $r.Text)
+      $named = ($r.Grammar.Name -eq 'wake' -and $r.Confidence -ge $Min)
+      $fuzzy = ($r.Text -match '(?i)ar[vw][iy]s' -and $r.Confidence -ge ($Min - 0.25))
+      if ($named -or $fuzzy) { [Console]::Out.WriteLine('WAKE:' + $c + ':' + $r.Text) }
     }
   }
 } catch {
@@ -43,8 +47,8 @@ try {
 `;
 
 class WakeWord {
-  constructor({ dir, onStatus, onHit, log = () => {}, platform = process.platform, spawnImpl = spawn }) {
-    Object.assign(this, { dir, onStatus, onHit, log, platform, spawnImpl });
+  constructor({ dir, onStatus, onHit, onHeard, log = () => {}, platform = process.platform, spawnImpl = spawn }) {
+    Object.assign(this, { dir, onStatus, onHit, onHeard, log, platform, spawnImpl });
     this.proc = null; this.wanted = false; this.sens = 'mid'; this.restarts = 0; this.state = { state: 'off' };
   }
   status(s) { this.state = s; this.onStatus?.(s); }
@@ -74,6 +78,7 @@ class WakeWord {
       while ((i = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
         if (line.startsWith('READY:')) { this.restarts = 0; this.status({ state: 'ready', detail: line.slice(6) }); this.log(`Weckwort bereit (${line.slice(6)})`); }
+        else if (line.startsWith('HEARD:')) { const [, conf, ...text] = line.split(':'); this.onHeard?.({ confidence: Number(conf), text: text.join(':').slice(0, 80) }); }
         else if (line.startsWith('WAKE:')) {
           const [, conf, ...text] = line.split(':');
           this.log(`Weckwort erkannt (${conf})`);
