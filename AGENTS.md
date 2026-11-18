@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 3.1.3 (Claude): Spracheingabe nutzt health.arrange und noteFailure (Pause bei leerem Guthaben), maxRetries 0, klare Meldung bei aufgebrauchtem Limit.
 - 3.1.2 (Claude): history.js cleanHistory: Verlauf beginnt mit Nutzer, gleiche Rollen zusammengeführt, leere Einträge raus (gegen Ablehnungen von Anthropic/Gemini). Test teil17.
 - 3.1.1 (Claude): LANGUAGE_GUIDE in buildSystem (main.js): feste Deutsch-Regeln gegen Sprachfehler/Fremdsprachen-Mix kleiner KIs.
 - 3.1.0 (Claude): Zuverlässigkeit. Einstellung `sequential` (Standard an): eine KI nach der anderen (parallel=1, hedge=0), speedOrder aus, timeoutSec 25 (lokal 90 s per step.timeoutMs); Migration einmalig. router.js: ProviderError.limit, Timeouts und Limit-429 nicht wiederholt, Retry-After max 10 s. providers.js raiseFor setzt limit (402, 429 mit Quota-Text oder Retry-After > 20 s). Neu health.js: classify/pause/arrange (pausierte KIs ans Ende, pausedUntil in cfg.accounts), IPC provider:unpause, Badge "Pause bis" in den Einstellungen, Grund in der Wechsel-Meldung. Test teil16.

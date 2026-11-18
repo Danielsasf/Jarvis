@@ -440,7 +440,7 @@ ipcMain.handle('chat:send', async (_e, reqId, messages) => {
 ipcMain.handle('chat:stop', (_e, reqId) => { running.get(reqId)?.abort(); });
 
 ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
-  const candidates = activeChain().filter((id) => P(id).stt);
+  const candidates = healthLib.arrange(activeChain().filter((id) => P(id).stt), cfg.accounts).chain;
   if (!candidates.length) throw new Error('Für Spracheingabe bitte ChatGPT, Groq oder Gemini verbinden.');
   const chain = candidates.map((id) => {
     const p = P(id);
@@ -448,8 +448,18 @@ ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
     return { id, label: `${p.name} (Sprache)`, run: (signal) => transcribe(p, decrypt(s.key), s.model, Buffer.from(audio), mime, signal),
       repair: async () => refreshModels(id, { exclude: [s.model] }) };
   });
-  const result = await runWithFallback(chain, { log, timeoutMs: 45000, maxRetries: 1 });
-  return result.text;
+  try {
+    const result = await runWithFallback(chain, { log, timeoutMs: 45000, maxRetries: 0 });
+    for (const f of result.failures) noteFailure(f.id, f.err);
+    if (cfg.accounts[result.used.id] && healthLib.clear(cfg.accounts[result.used.id])) saveCfg();
+    return result.text;
+  } catch (err) {
+    for (const f of err.failures || []) noteFailure(f.id, f.err);
+    saveCfg();
+    const alle = (err.failures || []).length && err.failures.every((f) => f.err?.limit || f.err?.status === 429 || f.err?.status === 402);
+    if (alle) throw new Error('Spracheingabe: Das Guthaben oder Limit deiner Sprach-KIs ist aufgebraucht. Lade Guthaben auf oder verbinde Gemini oder Groq (haben einen kostenlosen Einstieg) für Sprache.');
+    throw err;
+  }
 });
 
 ipcMain.handle('open:external', (_e, url) => {
