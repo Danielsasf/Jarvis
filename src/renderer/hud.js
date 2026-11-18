@@ -7,56 +7,127 @@
   const SPEED = { idle: 1, thinking: 3.4, listening: 1.5, speaking: 1.8, error: 0.5 };
   const TAU = Math.PI * 2;
 
-  // ---- Erde: grobe Kontinente (Länge, Breite) -> Landmaske, pro Bild als Kugel gerendert ----
-  const LAND = [
-    [[-168,65],[-156,71],[-141,70],[-128,70],[-115,68],[-95,72],[-85,70],[-80,63],[-92,57],[-82,52],[-78,58],[-68,60],[-62,55],[-56,52],[-66,45],[-70,42],[-76,38],[-81,31],[-80,25],[-84,30],[-90,29],[-97,27],[-97,21],[-90,21],[-87,21],[-88,16],[-83,10],[-78,8],[-85,11],[-92,15],[-105,20],[-110,24],[-114,31],[-117,32],[-120,34],[-124,40],[-124,48],[-130,55],[-140,60],[-152,59],[-165,60]],
-    [[-73,78],[-60,82],[-30,83],[-20,78],[-22,70],[-40,62],[-48,61],[-55,68],[-70,70]],
-    [[-80,8],[-72,12],[-62,10],[-52,5],[-50,0],[-35,-6],[-39,-15],[-48,-26],[-58,-35],[-65,-42],[-68,-52],[-72,-53],[-74,-44],[-72,-30],[-70,-18],[-76,-14],[-81,-5],[-80,2]],
-    [[-10,36],[-9,43],[-2,44],[-5,48],[2,51],[8,54],[10,58],[5,62],[14,67],[25,71],[40,68],[60,70],[80,73],[105,77],[130,72],[160,70],[180,68],[180,65],[170,60],[160,55],[156,51],[142,52],[135,43],[128,38],[126,34],[121,31],[120,24],[110,20],[108,14],[105,9],[100,13],[98,8],[103,1],[98,16],[92,21],[86,20],[80,15],[77,8],[72,20],[67,25],[60,25],[57,25],[56,27],[50,30],[48,29],[51,25],[56,24],[59,22],[52,16],[44,12],[39,20],[35,28],[34,31],[36,36],[30,36],[27,37],[26,40],[28,41],[22,40],[19,42],[13,45],[18,40],[15,38],[12,42],[9,44],[3,43],[0,39],[-6,36]],
-    [[-17,21],[-10,30],[-6,36],[10,37],[11,33],[20,31],[32,31],[34,28],[38,20],[43,12],[51,12],[48,5],[40,-3],[40,-15],[35,-24],[32,-29],[27,-34],[19,-34],[14,-24],[12,-12],[9,-1],[9,4],[5,5],[-5,5],[-13,8],[-17,14]],
-    [[114,-22],[122,-18],[130,-12],[137,-12],[142,-11],[146,-19],[153,-26],[150,-37],[141,-38],[135,-34],[130,-32],[115,-34],[113,-26]],
-    [[-5,50],[1,51],[0,54],[-3,58],[-6,56]], [[130,31],[135,34],[140,36],[142,42],[140,41],[135,35]],
-    [[44,-25],[49,-15],[50,-13],[47,-25]], [[109,1],[117,7],[119,1],[115,-4],[110,-3]], [[95,5],[106,-6],[104,-5],[98,2]],
-    [[166,-46],[174,-41],[178,-38],[172,-41],[168,-47]], [[-180,-72],[180,-72],[180,-90],[-180,-90]],
-  ];
-  const MW = 360; const MH = 180; let mask = null;
-  function buildMask() {
-    const cv = document.createElement('canvas'); cv.width = MW; cv.height = MH; const g = cv.getContext('2d');
-    g.fillStyle = '#fff';
-    for (const poly of LAND) { g.beginPath(); poly.forEach(([lo, la], i) => { const px = lo + 180; const py = 90 - la; if (i) g.lineTo(px, py); else g.moveTo(px, py); }); g.closePath(); g.fill(); }
-    const d = g.getImageData(0, 0, MW, MH).data; mask = new Uint8Array(MW * MH);
-    for (let i = 0; i < mask.length; i++) mask[i] = d[i * 4 + 3] > 100 ? 1 : 0;
+  // ---- Erde: echte Küstenlinien (Natural Earth 1:50m) als Textur, pro Bild auf eine Kugel projiziert ----
+  const TW = 2048; const TH = 1024;
+  let tex = null; // Farbe pro Texel (RGB), wird einmal aus der Landkarte berechnet
+  let clouds = null; const CW = 512; const CH = 256;
+  function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+  // Wertrauschen, horizontal nahtlos (Periode px)
+  function vnoise(x, y, px) {
+    const xi = Math.floor(x); const yi = Math.floor(y); const fx = x - xi; const fy = y - yi;
+    const u = fx * fx * (3 - 2 * fx); const v = fy * fy * (3 - 2 * fy);
+    const x0 = ((xi % px) + px) % px; const x1 = (x0 + 1) % px;
+    const a = hash(x0, yi); const b = hash(x1, yi); const c = hash(x0, yi + 1); const d = hash(x1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   }
-  const earthCv = document.createElement('canvas'); let earthCtx = null;
-  // Rendert die Erde als Bild mit Beleuchtung; spin = Drehwinkel, tilt = Achsneigung
-  function earthImage(S, spin, tilt, tint, t) {
-    if (!mask) buildMask();
-    if (earthCv.width !== S) { earthCv.width = S; earthCv.height = S; earthCtx = earthCv.getContext('2d'); }
-    const img = earthCtx.createImageData(S, S); const D = img.data;
-    const ct = Math.cos(tilt); const st = Math.sin(tilt); const L = [-0.5, -0.42, 0.76]; const ln = Math.hypot(...L);
+  function fbm(x, y, px, oct) { let s = 0; let amp = 0.5; let f = 1; for (let o = 0; o < oct; o++) { s += vnoise(x * f, y * f, px * f) * amp; f *= 2; amp *= 0.5; } return s; }
+  function blurMap(src, w, h, r) {
+    // Kastenunschärfe (horizontal nahtlos), zweimal = fast Gauß
+    let a = Float32Array.from(src); const b = new Float32Array(w * h);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let y = 0; y < h; y++) { let acc = 0; for (let k = -r; k <= r; k++) acc += a[y * w + ((k + w) % w)]; for (let x = 0; x < w; x++) { b[y * w + x] = acc / (2 * r + 1); acc += a[y * w + ((x + r + 1) % w)] - a[y * w + ((x - r + w) % w)]; } }
+      for (let x = 0; x < w; x++) { let acc = 0; for (let k = -r; k <= r; k++) acc += b[Math.min(h - 1, Math.max(0, k)) * w + x]; for (let y = 0; y < h; y++) { a[y * w + x] = acc / (2 * r + 1); acc += b[Math.min(h - 1, y + r + 1) * w + x] - b[Math.max(0, y - r) * w + x]; } }
+    }
+    return a;
+  }
+  function buildTexture(img) {
+    const cv = document.createElement('canvas'); cv.width = TW; cv.height = TH; const g = cv.getContext('2d');
+    g.drawImage(img, 0, 0, TW, TH); const d = g.getImageData(0, 0, TW, TH).data;
+    // grobe Karte für "wie weit im Landesinneren" und "Flachwasser an der Küste"
+    const SW = 512; const SH = 256; const small = new Float32Array(SW * SH);
+    for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) small[y * SW + x] = d[((y * 4 + 2) * TW + x * 4 + 2) * 4] / 255;
+    const inland = blurMap(small, SW, SH, 6); const shore = blurMap(small, SW, SH, 2);
+    tex = new Uint8Array(TW * TH * 3);
+    const mix = (c1, c2, k) => [c1[0] + (c2[0] - c1[0]) * k, c1[1] + (c2[1] - c1[1]) * k, c1[2] + (c2[2] - c1[2]) * k];
+    const DEEP = [6, 34, 92]; const MID = [10, 62, 138]; const SHALLOW = [16, 86, 150];
+    const JUNGLE = [34, 92, 38]; const FOREST = [52, 104, 50]; const BOREAL = [40, 74, 52]; const GRASS = [104, 128, 66];
+    const STEPPE = [150, 140, 92]; const DESERT = [204, 170, 112]; const TUNDRA = [122, 118, 98]; const ICE = [236, 244, 250];
+    for (let y = 0; y < TH; y++) {
+      const lat = 90 - (y + 0.5) / TH * 180; const al = Math.abs(lat); const sy = Math.min(SH - 1, y >> 2);
+      for (let x = 0; x < TW; x++) {
+        const o = (y * TW + x) * 4; const landK = d[o] / 255; const iceK = d[o + 1] / 255; const sx = x >> 2;
+        const inl = inland[sy * SW + sx]; const sh = shore[sy * SW + sx];
+        const n = fbm(x / 64, y / 64, TW / 64, 4); // Rauschen für natürliche Übergänge
+        // Meer: tief -> flach an der Küste
+        let sea = mix(DEEP, MID, Math.min(1, n * 0.6 + 0.2)); sea = mix(sea, SHALLOW, Math.min(1, Math.max(0, sh - 0.06) * 2.2) * 0.7);
+        // Land: Klimazonen nach Breite + Landesinnerem (weit weg vom Meer = trockener)
+        // Klimazonen weich ineinander übergehen lassen (Breite leicht verrauscht, damit keine geraden Kanten entstehen)
+        const ale = Math.max(0, al + (n - 0.5) * 16);
+        const ZONES = [[0, JUNGLE], [14, FOREST], [28, GRASS], [42, FOREST], [55, BOREAL], [66, TUNDRA], [76, TUNDRA], [84, ICE]];
+        let c = ZONES[ZONES.length - 1][1];
+        for (let z = 0; z < ZONES.length - 1; z++) { if (ale < ZONES[z + 1][0]) { c = mix(ZONES[z][1], ZONES[z + 1][1], (ale - ZONES[z][0]) / (ZONES[z + 1][0] - ZONES[z][0])); break; } }
+        const ss = (e0, e1, v) => { const q = Math.min(1, Math.max(0, (v - e0) / (e1 - e0))); return q * q * (3 - 2 * q); };
+        const dry = Math.max(0, 1 - Math.abs(ale - 24) / 14) * ss(0.35, 0.75, inl + (n - 0.5) * 0.35);
+        c = mix(c, DESERT, Math.min(1, dry * 1.5));
+        const stp = Math.max(0, 1 - Math.abs(ale - 44) / 9) * ss(0.55, 0.85, inl + (n - 0.5) * 0.3);
+        c = mix(c, STEPPE, stp * 0.8);
+        c = mix(c, ICE, iceK);
+        // feine Struktur (Berge/Täler angedeutet)
+        const k = 0.86 + fbm(x / 9, y / 9, TW / 9, 3) * 0.28; c = [c[0] * k, c[1] * k, c[2] * k];
+        const f = mix(sea, c, landK); const t = (y * TW + x) * 3;
+        tex[t] = Math.min(255, f[0]); tex[t + 1] = Math.min(255, f[1]); tex[t + 2] = Math.min(255, f[2]);
+      }
+    }
+    // Wolken: nahtloses Rauschen, Bänder in Tropen und mittleren Breiten
+    clouds = new Uint8Array(CW * CH);
+    for (let y = 0; y < CH; y++) {
+      const lat = 90 - (y + 0.5) / CH * 180; const band = 0.55 + 0.25 * Math.cos(lat / 90 * Math.PI * 3);
+      for (let x = 0; x < CW; x++) { const v = fbm(x / 40, y / 40, CW / 40, 5); clouds[y * CW + x] = Math.max(0, Math.min(255, (v - (1 - band * 0.62)) * 900)); }
+    }
+  }
+  (function loadMap() {
+    if (!window.EARTH_MAP) return;
+    const img = new Image(); img.onload = () => { try { buildTexture(img); } catch (e) { console.warn('Erde', e); } }; img.src = window.EARTH_MAP;
+  })();
+
+  // Geometrie pro Größe einmal vorberechnen (nur die Drehung ändert sich pro Bild)
+  let geo = null;
+  function buildGeo(S, tilt) {
+    const n = S * S; const g = { S, tilt, inside: new Uint8Array(n), lon: new Float32Array(n), ty: new Uint16Array(n), cy: new Uint16Array(n), lit: new Float32Array(n), spec: new Float32Array(n), rim: new Float32Array(n) };
+    const ct = Math.cos(tilt); const st = Math.sin(tilt); const L = [-0.55, -0.4, 0.73]; const ln = Math.hypot(...L); const Lx = L[0] / ln; const Ly = L[1] / ln; const Lz = L[2] / ln;
+    const Hx = Lx; const Hy = Ly; const Hz = Lz + 1; const hn = Math.hypot(Hx, Hy, Hz);
     for (let j = 0; j < S; j++) {
       const py = (j + 0.5) / S * 2 - 1;
       for (let i = 0; i < S; i++) {
-        const px = (i + 0.5) / S * 2 - 1; const r2 = px * px + py * py; const o = (j * S + i) * 4;
-        if (r2 > 1) { D[o + 3] = 0; continue; }
-        const pz = Math.sqrt(1 - r2);
-        const y = py * ct + pz * st; const z = -py * st + pz * ct;
-        let lon = Math.atan2(px, z) - spin; lon = ((lon + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        const px = (i + 0.5) / S * 2 - 1; const r2 = px * px + py * py; const k = j * S + i;
+        if (r2 > 1) continue;
+        g.inside[k] = r2 > 0.985 ? 2 : 1; // 2 = Randpixel (Kantenglättung)
+        const pz = Math.sqrt(1 - r2); const y = -(py * ct) + pz * st; const z = py * st + pz * ct;
+        g.lon[k] = Math.atan2(px, z);
         const lat = Math.asin(Math.max(-1, Math.min(1, y)));
-        const mx = Math.min(MW - 1, Math.max(0, Math.floor((lon / Math.PI * 0.5 + 0.5) * MW)));
-        const my = Math.min(MH - 1, Math.max(0, Math.floor((0.5 - lat / Math.PI) * MH)));
-        const land = mask[my * MW + mx];
-        let R_; let G_; let B_;
-        if (land) { if (Math.abs(lat) > 1.27) { R_ = 225; G_ = 240; B_ = 250; } else { const dry = Math.abs(lat) < 0.5 ? 1 : 0; R_ = 70 + dry * 70; G_ = 165 + dry * 10; B_ = 95; } }
-        else { R_ = 12; G_ = 78; B_ = 160; }
-        // Wolken: einfache Wellenmuster, die langsam wandern
-        const cl = Math.sin(lon * 4 + t * 0.15 + Math.sin(lat * 5) * 2) * Math.sin(lat * 7 - lon * 2 + t * 0.1);
-        if (cl > 0.55) { const k = Math.min(1, (cl - 0.55) * 3) * 0.55; R_ += (255 - R_) * k; G_ += (255 - G_) * k; B_ += (255 - B_) * k; }
-        const lam = (px * L[0] + py * L[1] + pz * L[2]) / ln; const lit = Math.max(0.16, Math.min(1.1, 0.3 + 0.85 * lam));
-        D[o] = Math.min(255, R_ * lit * 0.85 + tint[0] * 0.15 * lit); D[o + 1] = Math.min(255, G_ * lit * 0.85 + tint[1] * 0.15 * lit); D[o + 2] = Math.min(255, B_ * lit * 0.85 + tint[2] * 0.15 * lit); D[o + 3] = 255;
+        g.ty[k] = Math.min(TH - 1, Math.max(0, Math.floor((0.5 - lat / Math.PI) * TH)));
+        g.cy[k] = Math.min(CH - 1, Math.max(0, Math.floor((0.5 - lat / Math.PI) * CH)));
+        const lam = px * Lx + py * Ly + pz * Lz;
+        g.lit[k] = Math.max(0.07, Math.min(1.15, 0.12 + 1.0 * Math.max(0, lam) + 0.1 * pz));
+        const nh = Math.max(0, (px * Hx + py * Hy + pz * Hz) / hn); g.spec[k] = Math.pow(nh, 40) * 0.45;
+        g.rim[k] = Math.pow(1 - pz, 3);
       }
     }
-    earthCtx.putImageData(img, 0, 0);
+    return g;
+  }
+  const earthCv = document.createElement('canvas'); let earthCtx = null; let earthImg = null;
+  // spin = Drehwinkel, tilt = Achsneigung, tint = HUD-Farbe (leichte Tönung), t = Zeit für die Wolken
+  function earthImage(S, spin, tilt, tint, t) {
+    if (!geo || geo.S !== S || geo.tilt !== tilt) geo = buildGeo(S, tilt);
+    if (earthCv.width !== S) { earthCv.width = S; earthCv.height = S; earthCtx = earthCv.getContext('2d'); earthImg = null; }
+    if (!earthImg) earthImg = earthCtx.createImageData(S, S);
+    const D = earthImg.data; const g = geo; const n = S * S; const TWO = Math.PI * 2;
+    const cloudShift = t * 0.012; // Wolken ziehen etwas schneller als die Erde
+    for (let k = 0; k < n; k++) {
+      const o = k * 4; const ins = g.inside[k];
+      if (!ins) { D[o + 3] = 0; continue; }
+      let u = (g.lon[k] - spin) / TWO + 0.5; u -= Math.floor(u);
+      let R_; let G_; let B_; let water = 1;
+      if (tex) { const t3 = (g.ty[k] * TW + Math.min(TW - 1, Math.floor(u * TW))) * 3; R_ = tex[t3]; G_ = tex[t3 + 1]; B_ = tex[t3 + 2]; water = B_ > R_ + 60 && B_ > G_ + 30 ? 1 : 0; }
+      else { R_ = 10; G_ = 62; B_ = 138; }
+      let cu = u + cloudShift; cu -= Math.floor(cu);
+      const cl = clouds ? clouds[g.cy[k] * CW + Math.min(CW - 1, Math.floor(cu * CW))] / 255 * 0.85 : 0;
+      R_ += (245 - R_) * cl; G_ += (248 - G_) * cl; B_ += (252 - B_) * cl;
+      const lit = g.lit[k]; const sp = water * (1 - cl) * g.spec[k] * 255; const rim = g.rim[k];
+      let r = R_ * lit + sp + (tint[0] * 0.55 + 60) * rim; let gg = G_ * lit + sp + (tint[1] * 0.55 + 90) * rim; let b = B_ * lit + sp + (tint[2] * 0.6 + 120) * rim;
+      D[o] = r > 255 ? 255 : r; D[o + 1] = gg > 255 ? 255 : gg; D[o + 2] = b > 255 ? 255 : b; D[o + 3] = ins === 2 ? 170 : 255;
+    }
+    earthCtx.putImageData(earthImg, 0, 0);
     return earthCv;
   }
 
@@ -228,11 +299,11 @@
       };
       drawOrbits(false);
       // Kugel: die Erde, dreht sich; darüber ein feines Gitter
-      const S = Math.max(48, Math.min(190, Math.round(cr * 2)));
-      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.12;
-      ctx.imageSmoothingEnabled = true; ctx.drawImage(earthImage(S, t * 0.35, 0.41, col, t), x - cr, y - cr, cr * 2, cr * 2);
+      const S = Math.max(64, Math.min(420, Math.round(cr * 2 * Math.min(2, window.devicePixelRatio || 1))));
+      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.08;
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(earthImage(S, t * 0.35, 0.41, col, t), x - cr, y - cr, cr * 2, cr * 2);
       ctx.restore();
-      const meridians = small ? 0 : 12; const parallels = small ? 0 : 8;
+      const meridians = 0; const parallels = 0; // kein Gitter mehr: die Erde soll klar zu sehen sein
       for (let m = 0; m < meridians; m++) {
         const lon = (m / meridians) * Math.PI; let prev = null;
         for (let i = 0; i <= 48; i++) {
@@ -250,11 +321,8 @@
       // Randlicht (Atmosphäre) und Glanzpunkt für mehr Tiefe
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const rim = ctx.createRadialGradient(x, y, cr * 0.72, x, y, cr * 1.04);
-      rim.addColorStop(0, c(0)); rim.addColorStop(0.85, c(0.55)); rim.addColorStop(1, c(0));
+      rim.addColorStop(0, c(0)); rim.addColorStop(0.9, c(0.35)); rim.addColorStop(1, c(0));
       ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(x, y, cr * 1.04, 0, TAU); ctx.fill();
-      const sp = ctx.createRadialGradient(x - cr * 0.38, y - cr * 0.42, 0, x - cr * 0.38, y - cr * 0.42, cr * 0.34);
-      sp.addColorStop(0, 'rgba(190,245,255,.3)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = sp; ctx.beginPath(); ctx.arc(x - cr * 0.38, y - cr * 0.42, cr * 0.34, 0, TAU); ctx.fill();
       ctx.restore();
       drawOrbits(true);
       if (!small) {
