@@ -534,3 +534,20 @@ body.chatting .wx { display: none; }
 @media (max-height: 860px) { .wx-days { display: none; } }
 @media (max-height: 760px) { .wx { display: none; } }
 @media (max-width: 1040px) { .wx { display: none; } }
+
+/* Fokus-Ansicht 2.18: Verlauf, Eingabe und Seitenleiste per Knopf */
+.live { margin: 0 auto; padding: 0 26px; max-width: 780px; min-height: 3.4em; text-align: center; font-size: 17px; line-height: 1.5; color: #dff6ff; flex: none; transition: opacity .6s; }
+.live.hint { color: var(--dim); font-size: 13.5px; } .live.warn { color: var(--bad); }
+.live.fade { opacity: 0; }
+.top-btn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+body.hide-chat main { display: none; }
+body.hide-chat .content { justify-content: center; }
+body.hide-chat .stage { flex: 1; align-items: center; }
+body.hide-chat .core-wrap { width: clamp(220px, 44vh, 400px); height: clamp(220px, 44vh, 400px); }
+body.hide-input .composer { display: none; }
+body:not(.hide-chat) .live { display: none; }
+.statusbox { margin: 0 0 10px; display: grid; gap: 8px; }
+.statusbox > div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 14px; border: 1px solid var(--line); background: rgba(5, 13, 21, .6); }
+.statusbox dt { color: var(--muted); font-size: 12.5px; } .statusbox dd { margin: 0; font-family: var(--mono); font-size: 12.5px; color: #eaf9ff; text-align: right; }
+.statusbox .click { cursor: pointer; } .statusbox .click:hover { border-color: var(--accent); }
+@media (max-height: 760px) { body.hide-chat .core-wrap { width: 200px; height: 200px; } }

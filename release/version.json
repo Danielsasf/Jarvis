@@ -1,4 +1,4 @@
 {
-  "version": "2.17.0",
-  "notes": "Look: Kern deutlich aufgewertet – Reaktor mit drehenden Sechsecken, Druckwellen, Energiepunkte, Eck-Klammern, Lichtreflex."
+  "version": "2.18.0",
+  "notes": "Neue Fokus-Ansicht: Startbildschirm nur Kern, Reaktion und KI-Zahl; Jarvis' Antwort läuft als Schrift mit. Verlauf, Eingabefeld und Seitenleiste per Knopf oben ein/aus. Verbindung, Gedächtnis, Weckwort stehen jetzt in den Einstellungen unter System."
 }

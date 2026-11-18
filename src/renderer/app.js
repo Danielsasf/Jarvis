@@ -5,7 +5,7 @@ const els = {
   messages: $('messages'), chat: $('chat'), input: $('input'), send: $('send'), mic: $('mic'),
   speakToggle: $('speakToggle'), newChat: $('newChat'), settings: $('settings'), scrim: $('scrim'), providerList: $('providerList'),
   systemPrompt: $('systemPrompt'), log: $('log'), toast: $('toast'), roLink: $('roLink'), roSpeed: $('roSpeed'), roCount: $('roCount'),
-  roClock: $('roClock'), roMemory: $('roMemory'), suggest: $('suggest'), packList: $('packList'), memList: $('memList'), version: $('version'), updateBanner: $('updateBanner'), updateVersion: $('updateVersion'), updateInstall: $('updateInstall'), updateNotes: $('updateNotes'), updateNotesToggle: $('updateNotesToggle'),
+  roClock: $('roClock'), live: $('live'), roMemory: $('roMemory'), suggest: $('suggest'), packList: $('packList'), memList: $('memList'), version: $('version'), updateBanner: $('updateBanner'), updateVersion: $('updateVersion'), updateInstall: $('updateInstall'), updateNotes: $('updateNotes'), updateNotesToggle: $('updateNotesToggle'),
   updateInfo: $('updateInfo'), checkUpdate: $('checkUpdate'), autoUpdate: $('autoUpdate'), roWake: $('roWake'), wakeStatus: $('wakeStatus'),
 };
 
@@ -52,6 +52,36 @@ function updateReadouts() {
   els.updateInfo.textContent = `Installiert: Version ${state.version}`;
   els.autoUpdate.checked = state.settings.autoUpdate !== false;
 }
+// ---------- Ansicht: Verlauf / Eingabe / Seitenleiste (Standard: alles zu, nur Kern + mitlaufende Schrift) ----------
+const UI_KEY = 'jarvis.ui';
+let ui = { hideChat: true, hideInput: false, side: false };
+try { ui = { ...ui, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') }; } catch { /* egal */ }
+function applyUi() {
+  const b = document.body.classList;
+  b.toggle('hide-chat', !!ui.hideChat); b.toggle('hide-input', !!ui.hideInput); b.toggle('side-off', !ui.side);
+  $('chatToggle').setAttribute('aria-pressed', String(!ui.hideChat));
+  $('inputToggle').setAttribute('aria-pressed', String(!ui.hideInput));
+  $('sideToggle').setAttribute('aria-pressed', String(!!ui.side));
+  try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* egal */ }
+  if (typeof updateWelcome === 'function' && state) updateWelcome();
+  scrollDown?.(true);
+}
+function setUi(patch) { ui = { ...ui, ...patch }; applyUi(); }
+let liveActive = false; let liveTimer = 0;
+function setLive(text, kind = '', isHint = false) {
+  const el = els.live; if (!el) return;
+  clearTimeout(liveTimer);
+  el.textContent = text; el.className = `live${kind ? ` ${kind}` : ''}`;
+  liveActive = !isHint;
+  if (!isHint) liveTimer = setTimeout(() => { liveActive = false; el.classList.add('fade'); setTimeout(() => { if (!liveActive) updateWelcome(); }, 700); }, kind === 'warn' ? 15000 : 12000);
+}
+function liveFrom(raw) {
+  const t = String(raw || '').replace(/[*#`_>]/g, '').replace(/\s+/g, ' ').trim();
+  if (!t) return;
+  let out = t;
+  if (t.length > 220) { out = t.slice(-220); const i = out.indexOf(' '); if (i > 0 && i < 40) out = out.slice(i + 1); out = `… ${out}`; }
+  setLive(out);
+}
 function updateWelcome() {
   const none = connectedCount() === 0;
   els.welcomeConnect.classList.toggle('hidden', !none);
@@ -60,7 +90,8 @@ function updateWelcome() {
     : (state.settings.wakeWord ? 'Sag „Hey Jarvis“, schreib eine Nachricht oder tipp / für Pakete.' : 'Schreib eine Nachricht, halte die Leertaste zum Sprechen oder tipp / für Pakete.');
   const empty = !(activeChat()?.messages.length) && !activeRun();
   els.welcome.classList.toggle('hidden', !empty);
-  document.body.classList.toggle('chatting', !empty);
+  document.body.classList.toggle('chatting', !empty && !ui.hideChat);
+  if (empty && !liveActive) setLive(els.welcomeHint.textContent, 'hint', true);
 }
 const activePacks = () => (state.packs || []).filter((p) => p.enabled && !p.error);
 setInterval(() => { els.roClock.textContent = new Date().toLocaleTimeString('de-DE'); }, 1000);
@@ -94,6 +125,7 @@ function scrollDown(force) {
   if (force || nearBottom) els.chat.scrollTop = els.chat.scrollHeight;
 }
 function addStep(bubble, text, warn = false) {
+  if (warn && document.body.classList.contains('hide-chat')) setLive(text, 'warn');
   const s = document.createElement('div');
   if (warn) s.className = 'warn';
   s.textContent = `› ${text}`;
@@ -110,6 +142,7 @@ function fmtEventMs(ms, allDay) {
 }
 // Bestätigungskarte: Jarvis trägt nur nach Klick auf „Eintragen“ etwas ein
 function addProposal(bubble, p) {
+  if (ui.hideChat) { setUi({ hideChat: false }); toast('Jarvis möchte etwas bestätigen – Verlauf geöffnet.'); }
   const card = document.createElement('div');
   card.className = 'proposal';
   const draw = () => {
@@ -335,6 +368,7 @@ async function sendMessage(text) {
     const res = await jarvis.send(reqId, chat.messages.map(({ role, content }) => ({ role, content })));
     if (res.stopped) throw Object.assign(new Error('gestoppt'), { stopped: true });
     run.text = res.text;
+    if (isShown(run)) liveFrom(stripLive(res.text));
     chat.messages.push({ role: 'assistant', content: res.text, by: res.by, proposals: res.proposals?.length ? res.proposals : undefined });
     chat.updated = Date.now();
     persist(chat);
@@ -398,6 +432,7 @@ jarvis.onDelta(({ reqId, text: raw }) => {
   const text = vis.startsWith(run.text) ? vis.slice(run.text.length) : '';
   run.text = vis.startsWith(run.text) ? vis : run.text;
   if (!isShown(run)) return;
+  liveFrom(run.text);
   if (text && state.settings.speak) speaker.feed(text);
   if (!run.raf) run.raf = requestAnimationFrame(() => paint(run, false));
 });
@@ -1034,13 +1069,15 @@ els.updateNotesToggle.onclick = () => {
 els.send.onclick = () => (activeRun() ? jarvis.stop(activeRun().reqId) : sendMessage());
 els.input.addEventListener('input', autoGrow);
 els.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
-els.sidePacks.addEventListener('click', (e) => { const c = e.target.closest('.side-pack'); if (c) { els.input.value = `${c.dataset.cmd} `; els.input.focus(); updateSuggest(); } });
+els.sidePacks.addEventListener('click', (e) => { const c = e.target.closest('.side-pack'); if (c) { if (ui.hideInput) setUi({ hideInput: false }); els.input.value = `${c.dataset.cmd} `; els.input.focus(); updateSuggest(); } });
 $('packsTitle').onclick = () => { const off = document.body.classList.toggle('packs-off'); $('packsCaret').textContent = off ? '▸' : '▾'; };
 $('chatSearch').addEventListener('input', (e) => { chatQuery = e.target.value; $('chatSearchClear').classList.toggle('hidden', !chatQuery); renderChatList(); });
 $('chatSearch').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); $('chatSearchClear').click(); } });
 $('chatSearchClear').onclick = () => { $('chatSearch').value = ''; chatQuery = ''; $('chatSearchClear').classList.add('hidden'); renderChatList(); };
-window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.body.classList.remove('side-off'); $('chatSearch').focus(); $('chatSearch').select(); } });
-$('sideToggle').onclick = () => document.body.classList.toggle('side-off');
+window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setUi({ side: true }); $('chatSearch').focus(); $('chatSearch').select(); } });
+$('sideToggle').onclick = () => setUi({ side: !ui.side });
+$('chatToggle').onclick = () => setUi({ hideChat: !ui.hideChat });
+$('inputToggle').onclick = () => { setUi({ hideInput: !ui.hideInput }); if (!ui.hideInput) els.input.focus(); };
 $('sideMemory').onclick = () => openSettings('gedaechtnis');
 $('sideSettings').onclick = () => openSettings();
 $('openSettings').onclick = openSettings;
@@ -1067,7 +1104,8 @@ speechSynthesis.onvoiceschanged = () => {};
   const fresh = { id: newId(), title: 'Neuer Chat', created: Date.now(), updated: Date.now(), messages: [] };
   chats.unshift(fresh);
   activeId = fresh.id;
-  if (window.innerWidth < 860) document.body.classList.add('side-off');
+  if (window.innerWidth < 860) ui.side = false;
+  applyUi();
   renderAll();
   renderChatList();
   showWake(await jarvis.getWake());
