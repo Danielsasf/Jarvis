@@ -26,7 +26,7 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       return [w, h];
     }
-    const c = (a) => `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${a})`;
+    const c = (a) => `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${Math.min(1, a * 1.2)})`;
     const ring = (x, y, r, w, a, dash) => {
       ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.lineWidth = w; ctx.strokeStyle = c(a);
       ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
@@ -149,32 +149,68 @@
           arc(x, y, R * 0.78, a - 0.5, a, 1.5, 0.6);
         }
       }
-      // 6) Kern: scharfer Rand, heller Mittelpunkt
+      // 6) 3D-Kern: leuchtende Kugel mit Gitter (dreht), Kristall innen (dreht gegenläufig), Bahnen drumherum (kippen und drehen)
       const pulse = 1 + level * 0.28 + Math.sin(now / 1000) * 0.015;
-      const cr = R * (small ? 0.42 : 0.24) * pulse;
-      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.16;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, cr);
-      g.addColorStop(0, 'rgba(240,253,255,1)'); g.addColorStop(0.45, c(0.95)); g.addColorStop(0.92, c(0.55)); g.addColorStop(1, c(0.55));
+      const cr = R * (small ? 0.46 : 0.34) * pulse;
+      const rot = (px, py, pz, ay, ax) => { // erst um Y, dann um X drehen
+        const cy = Math.cos(ay); const sy = Math.sin(ay); let X = px * cy + pz * sy; let Z = -px * sy + pz * cy;
+        const cx = Math.cos(ax); const sx = Math.sin(ax); const Y = py * cx - Z * sx; Z = py * sx + Z * cx; return [X, Y, Z];
+      };
+      const P = (v, rad) => { const k = 1 / (1 - v[2] * 0.22); return [x + v[0] * rad * k, y + v[1] * rad * k, v[2]]; };
+      const seg3 = (p0, p1, w, baseA, rgb) => {
+        const z = (p0[2] + p1[2]) / 2; const al = Math.max(0.06, Math.min(1, baseA * (0.4 + 0.6 * (z + 1) / 2) * (z > 0 ? 1.15 : 0.55)));
+        ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineWidth = w; ctx.strokeStyle = rgb ? `rgba(${rgb},${al})` : c(al); ctx.stroke();
+      };
+      const tiltX = 0.42; const spinY = t * 0.55;
+      // Bahnen hinter der Kugel zuerst
+      const orbits = small ? [[0.62, 1.1, 1.3], [0.72, -0.4, -0.9]] : [[0.6, 1.25, 1.1], [0.72, -0.35, -0.8], [0.84, 0.75, 0.5]];
+      const drawOrbits = (front) => {
+        orbits.forEach(([rf, tilt, sp], oi) => {
+          const N = 72; const ay = t * sp * 0.6; let prev = null;
+          for (let i = 0; i <= N; i++) {
+            const a = (i / N) * TAU; const v = rot(Math.cos(a), 0, Math.sin(a), ay, tilt);
+            const pt = P(v, cr * (1 + rf * 1.15)); if (prev && ((prev[2] + pt[2]) / 2 > 0) === front) seg3(prev, pt, front ? 1.8 : 1.1, 0.85); prev = pt;
+          }
+          const sa = t * (1.6 + oi * 0.5) * (oi % 2 ? -1 : 1); const sv = rot(Math.cos(sa), 0, Math.sin(sa), ay, tilt); const sp3 = P(sv, cr * (1 + rf * 1.15));
+          if ((sp3[2] > 0) === front) {
+            ctx.save(); ctx.shadowColor = c(1); ctx.shadowBlur = 12; ctx.fillStyle = 'rgba(245,254,255,1)'; ctx.beginPath(); ctx.arc(sp3[0], sp3[1], (front ? 3.6 : 2.4) * (0.8 + 0.25 * (sp3[2] + 1)), 0, TAU); ctx.fill(); ctx.restore();
+          }
+        });
+      };
+      drawOrbits(false);
+      // Kugel: Leuchtkörper + Gitter
+      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.14;
+      const g = ctx.createRadialGradient(x - cr * 0.3, y - cr * 0.35, cr * 0.05, x, y, cr);
+      g.addColorStop(0, 'rgba(235,252,255,.95)'); g.addColorStop(0.35, c(0.75)); g.addColorStop(0.8, c(0.3)); g.addColorStop(1, c(0.12));
       ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-      // Reaktor im Kern: gegenläufige Sechsecke + Speichen
+      const meridians = small ? 6 : 10; const parallels = small ? 4 : 7;
+      for (let m = 0; m < meridians; m++) {
+        const lon = (m / meridians) * Math.PI; let prev = null;
+        for (let i = 0; i <= 48; i++) {
+          const a = (i / 48) * TAU; const v = rot(Math.cos(a) * Math.cos(lon), Math.sin(a), Math.cos(a) * Math.sin(lon), spinY, tiltX);
+          const pt = P(v, cr); if (prev) seg3(prev, pt, 1.2, 0.85, '4,28,44'); prev = pt;
+        }
+      }
+      for (let l = 1; l <= parallels; l++) {
+        const lat = (l / (parallels + 1)) * Math.PI - Math.PI / 2; const rr = Math.cos(lat); let prev = null;
+        for (let i = 0; i <= 48; i++) {
+          const a = (i / 48) * TAU; const v = rot(Math.cos(a) * rr, Math.sin(lat), Math.sin(a) * rr, spinY, tiltX);
+          const pt = P(v, cr); if (prev) seg3(prev, pt, 1.2, 0.85, '4,28,44'); prev = pt;
+        }
+      }
+      // Kristall im Inneren (Ikosaeder), dreht gegenläufig auf zwei Achsen
+      const ph = (1 + Math.sqrt(5)) / 2; const nl = Math.hypot(1, ph);
+      const V = [[-1, ph, 0], [1, ph, 0], [-1, -ph, 0], [1, -ph, 0], [0, -1, ph], [0, 1, ph], [0, -1, -ph], [0, 1, -ph], [ph, 0, -1], [ph, 0, 1], [-ph, 0, -1], [-ph, 0, 1]].map((v) => [v[0] / nl, v[1] / nl, v[2] / nl]);
+      const E = []; for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.abs(Math.hypot(V[i][0] - V[j][0], V[i][1] - V[j][1], V[i][2] - V[j][2]) - 2 / nl) < 0.01) E.push([i, j]);
+      const pv = V.map((v) => P(rot(v[0], v[1], v[2], -t * 1.1, t * 0.7), cr * 0.62));
+      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,.9)'; ctx.shadowBlur = 6;
+      for (const [i, j] of E) seg3(pv[i], pv[j], 1.5, 1, '245,254,255');
+      ctx.restore();
+      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,1)'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, cr * (0.13 + level * 0.1), 0, TAU); ctx.fill(); ctx.restore();
+      drawOrbits(true);
       if (!small) {
-        const hex = (rad, rot, w, al, col2) => {
-          ctx.beginPath();
-          for (let i = 0; i <= 6; i++) { const a = rot + (i / 6) * TAU; const px = x + Math.cos(a) * rad; const py = y + Math.sin(a) * rad; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
-          ctx.lineWidth = w; ctx.strokeStyle = col2 || c(al); ctx.stroke();
-        };
-        ctx.save(); ctx.shadowColor = c(0.8); ctx.shadowBlur = 5;
-        hex(cr * 0.82, t * 0.9, 1.4, 0, 'rgba(4,24,36,.75)');
-        hex(cr * 0.5, -t * 1.3, 1.2, 0, 'rgba(4,24,36,.6)');
-        for (let i = 0; i < 6; i++) { const a = t * 0.9 + (i / 6) * TAU; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * cr * 0.18, y + Math.sin(a) * cr * 0.18); ctx.lineTo(x + Math.cos(a) * cr * 0.82, y + Math.sin(a) * cr * 0.82); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(4,24,36,.5)'; ctx.stroke(); }
-        ctx.restore();
-        // Lichtreflex wandert über den Kern
-        const fa = t * 0.6; const fg = ctx.createRadialGradient(x + Math.cos(fa) * cr * 0.45, y + Math.sin(fa) * cr * 0.45, 0, x + Math.cos(fa) * cr * 0.45, y + Math.sin(fa) * cr * 0.45, cr * 0.5);
-        fg.addColorStop(0, 'rgba(255,255,255,.55)'); fg.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fill();
-        // Zwei Zacken-Ringe um den Kern
         ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.5);
-        for (let i = 0; i < 24; i++) { const a = (i / 24) * TAU; tick(0, 0, a, cr + 10, cr + (i % 2 ? 14 : 18), 1.2, 0.75); }
+        for (let i = 0; i < 24; i++) { const a = (i / 24) * TAU; tick(0, 0, a, cr * 2.55, cr * 2.55 + (i % 2 ? 5 : 10), 1.4, 0.9); }
         ctx.restore();
       }
       ring(x, y, cr + 3, 1, 0.9);

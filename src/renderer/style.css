@@ -86,7 +86,7 @@ body > *:not(.grid-bg):not(.settings):not(.scrim):not(.toast) { position: relati
 .stage::before, .stage::after { content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; opacity: .7; }
 .stage::before { left: 12px; top: 6px; border-left: 1px solid var(--line-3); border-top: 1px solid var(--line-3); }
 .stage::after { right: 12px; bottom: 2px; border-right: 1px solid var(--line-3); border-bottom: 1px solid var(--line-3); }
-.core-wrap { position: relative; width: clamp(196px, 39vh, 386px); height: clamp(196px, 39vh, 386px); }
+.core-wrap { position: relative; width: clamp(240px, 50vh, 520px); height: clamp(240px, 50vh, 520px); }
 .core-wrap::before { content: ""; position: absolute; inset: 4%; pointer-events: none;
   background: radial-gradient(circle, rgba(79, 227, 255, .13), rgba(122, 92, 255, .05) 52%, transparent 70%); }
 #core { position: relative; width: 100%; height: 100%; display: block; }
@@ -543,14 +543,14 @@ body.chatting .wx { display: none; }
 body.hide-chat main { display: none; }
 body.hide-chat .content { justify-content: center; }
 body.hide-chat .stage { flex: 1; align-items: center; }
-body.hide-chat .core-wrap { width: clamp(220px, 44vh, 400px); height: clamp(220px, 44vh, 400px); }
+body.hide-chat .core-wrap { width: clamp(260px, 58vh, 580px); height: clamp(260px, 58vh, 580px); }
 body.hide-input .composer { display: none; }
 body:not(.hide-chat) .live { display: none; }
 .statusbox { margin: 0 0 10px; display: grid; gap: 8px; }
 .statusbox > div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 14px; border: 1px solid var(--line); background: rgba(5, 13, 21, .6); }
 .statusbox dt { color: var(--muted); font-size: 12.5px; } .statusbox dd { margin: 0; font-family: var(--mono); font-size: 12.5px; color: #eaf9ff; text-align: right; }
 .statusbox .click { cursor: pointer; } .statusbox .click:hover { border-color: var(--accent); }
-@media (max-height: 760px) { body.hide-chat .core-wrap { width: 200px; height: 200px; } }
+@media (max-height: 760px) { body.hide-chat .core-wrap { width: 230px; height: 230px; } }
 
 /* Netz-Ansicht 2.19 */
 .netz { display: none; flex: 1; min-height: 0; grid-template-columns: 268px minmax(0, 1fr) 288px; gap: 12px; padding: 10px 14px 6px; border-top: 1px solid var(--line); }
