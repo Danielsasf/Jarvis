@@ -477,7 +477,7 @@ jarvis.onStatus((s) => {
   if (!shown) return;
   if (s.phase === 'asking') addStep(run.bubble, `Frage ${short(s.provider)} (${s.model}) …`);
   if (s.phase === 'slow') addStep(run.bubble, `Noch keine Antwort – frage zusätzlich ${short(s.provider)}`, true);
-  if (s.phase === 'switch') addStep(run.bubble, `${short(s.failed)} ausgefallen – wechsle zu ${short(s.provider)}`, true);
+  if (s.phase === 'switch') addStep(run.bubble, `${short(s.failed)}${s.reason ? `: ${s.reason}` : ' ausgefallen'} – wechsle zu ${short(s.provider)}`, true);
   if (s.phase === 'pack') addStep(run.bubble, `Paket „${s.pack}“ aktiv`);
   if (s.phase === 'mail') addStep(run.bubble, 'Lese deine E-Mails (nur lesen) …');
   if (s.phase === 'cal') addStep(run.bubble, 'Schaue in deinen Kalender (nur lesen) …');
@@ -631,14 +631,15 @@ function renderProviders() {
         </div>
         <div class="prov-name"><b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.desc)}</small></div>
         <span class="speed" title="So schnell kam bisher das erste Wort">${fmtMs(p.ms)}</span>
-        <span class="badge ${p.enabled ? 'ok' : ''}">${p.enabled ? 'Aktiv' : 'Pausiert'}</span>
+        ${p.pause ? `<span class="badge pause" title="Jarvis fragt diese KI erst wieder, wenn die Pause vorbei ist">Pause bis ${escapeHtml(p.pause.text)} · ${escapeHtml(p.pause.reason)}</span>` : ''}
+        <span class="badge ${p.enabled ? 'ok' : ''}">${p.enabled ? 'Aktiv' : 'Aus'}</span>
       </div>
       <div class="prov-body">
         <div class="row">
           <select title="Modell">${p.models.map((m) => `<option ${m === p.model ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}</select>
           <label class="switch" title="Aktiv"><input type="checkbox" ${p.enabled ? 'checked' : ''}><span></span></label>
         </div>
-        <div class="row end"><button class="danger" data-act="disconnect">Trennen</button></div>
+        <div class="row end">${p.pause ? '<button class="ghost" data-act="unpause">Pause aufheben</button>' : ''}<button class="danger" data-act="disconnect">Trennen</button></div>
       </div>`;
     const body = card.querySelector('.prov-body');
     body.querySelector('select').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { model: e.target.value }); updateReadouts(); toast(`${p.name}: ${e.target.value}`); };
@@ -652,6 +653,7 @@ function renderProviders() {
         [order[i], order[j]] = [order[j], order[i]];
         state = await jarvis.setOrder(order);
         renderAll();
+      } else if (act === 'unpause') { state = await jarvis.unpause(p.id); renderAll(); toast(`${p.name} wird wieder gefragt`);
       } else if (act === 'disconnect' && confirm(`${p.name} wirklich trennen?`)) { state = await jarvis.disconnect(p.id); renderAll(); }
     });
     els.providerList.appendChild(card);
@@ -701,10 +703,15 @@ $('addForm').addEventListener('click', async (e) => {
 
 function renderTempo() {
   const st = state.settings;
+  const seq = st.sequential !== false;
+  $('seqToggle').checked = seq;
+  $('tempoAdv').classList.toggle('dim', seq);
+  for (const id of ['raceToggle', 'hedgeSel', 'speedToggle']) $(id).disabled = seq;
   $('raceToggle').checked = st.race !== false;
   $('hedgeSel').value = String(st.hedgeSec ?? 5);
   $('speedToggle').checked = st.speedOrder !== false;
 }
+$('seqToggle').onchange = async (e) => { state = await jarvis.setSettings({ sequential: e.target.checked }); renderTempo(); };
 $('raceToggle').onchange = async (e) => { state = await jarvis.setSettings({ race: e.target.checked }); };
 $('hedgeSel').onchange = async (e) => { state = await jarvis.setSettings({ hedgeSec: Number(e.target.value) }); };
 $('speedToggle').onchange = async (e) => { state = await jarvis.setSettings({ speedOrder: e.target.checked }); };

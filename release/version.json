@@ -1,4 +1,4 @@
 {
-  "version": "3.0.0",
-  "notes": "Großes Update: Geschützte Pakete (.jpaket), Netz-Ansicht mit Erde und Paket-Bedienung, Schnellstart-Leiste, Kurven und Schlagzeilen, zuverlässigeres Weckwort, mehr Anleitungen"
+  "version": "3.1.0",
+  "notes": "Eine KI nach der anderen: bei leerem Limit sofort zur nächsten, leere KIs werden pausiert (mit Anzeige und Pause aufheben), schnelleres Aufgeben bei Timeouts, deine Reihenfolge zählt."
 }

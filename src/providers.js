@@ -60,6 +60,7 @@ function headersFor(p, key) {
 
 const MODEL_GONE = /not (found|available|supported)|no longer|deprecated|does not exist|decommission|retired|unknown model|invalid model/i;
 
+const LIMIT_TEXT = /quota|daily|per day|credit|billing|exhaust|insufficient|aufgebraucht|limit.{0,12}(reached|exceeded)|exceeded.{0,20}(limit|quota)/i;
 async function raiseFor(res) {
   let detail = '';
   try {
@@ -70,9 +71,11 @@ async function raiseFor(res) {
     400: 'Ungültige Anfrage', 401: 'Schlüssel ungültig', 403: 'Kein Zugriff', 404: 'Modell nicht gefunden',
     429: 'Zu viele Anfragen / Guthaben aufgebraucht', 529: 'Überlastet',
   }[res.status] || `Fehler ${res.status}`;
+  const retryAfterMs = parseRetryAfter(res.headers?.get?.('retry-after'));
+  const limit = res.status === 402 || (res.status === 429 && ((retryAfterMs != null && retryAfterMs > 20000) || LIMIT_TEXT.test(detail)));
   throw new ProviderError(`${friendly}${detail ? ` – ${detail}` : ''}`, {
-    status: res.status,
-    retryAfterMs: parseRetryAfter(res.headers?.get?.('retry-after')),
+    status: res.status, limit,
+    retryAfterMs,
     modelGone: res.status === 404 || ((res.status === 400 || res.status === 403) && MODEL_GONE.test(detail)),
   });
 }

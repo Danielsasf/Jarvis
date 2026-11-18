@@ -137,9 +137,14 @@
 
         <section data-pane="kis">
           <h2>KI-Anbieter</h2>
-          <p class="muted">Jarvis fragt die schnellsten KIs zuerst. Fällt eine aus oder antwortet nicht, übernimmt automatisch die nächste. Veraltete Modelle werden automatisch ersetzt.</p>
+          <p class="muted">Jarvis fragt eine KI nach der anderen, in deiner Reihenfolge. Ist das Limit einer KI aufgebraucht oder fällt sie aus, springt Jarvis sofort zur nächsten und lässt die leere KI eine Weile in Ruhe. Veraltete Modelle werden automatisch ersetzt.</p>
           <div class="tempo">
             <h3>Tempo</h3>
+            <div class="setting">
+              <div><b>Eine KI nach der anderen (empfohlen)</b><small>Es fragt immer nur eine KI. Ist ihr Limit leer oder sie fällt aus, kommt sofort die nächste. Spart Kontingent und läuft am ruhigsten.</small></div>
+              <label class="switch"><input type="checkbox" id="seqToggle"><span></span></label>
+            </div>
+            <div id="tempoAdv">
             <div class="setting">
               <div><b>Zwei KIs gleichzeitig fragen</b><small>Die schnellere gewinnt, die andere wird sofort gestoppt. Verbraucht etwas mehr Kontingent.</small></div>
               <label class="switch"><input type="checkbox" id="raceToggle"><span></span></label>
@@ -151,6 +156,7 @@
             <div class="setting">
               <div><b>Nach Geschwindigkeit sortieren</b><small>Jarvis misst, wie schnell jede KI antwortet, und fragt die schnellsten zuerst. Aus: es gilt nur deine Reihenfolge.</small></div>
               <label class="switch"><input type="checkbox" id="speedToggle"><span></span></label>
+            </div>
             </div>
           </div>
           <h3>Deine KIs</h3>

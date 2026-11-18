@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   addAccount: (data) => call('account:add', data),
   disconnect: (id) => call('provider:disconnect', id),
   updateProvider: (id, patch) => call('provider:update', id, patch),
+  unpause: (id) => call('provider:unpause', id),
   setOrder: (order) => call('order:set', order),
   setSettings: (patch) => call('settings:set', patch),
   detectLocal: () => call('local:detect'),

@@ -33,13 +33,13 @@ test('401 wird NICHT wiederholt', async () => {
   assert.equal(n, 1);
 });
 
-test('Timeout bricht ab und zählt als wiederholbar', async () => {
+test('Timeout bricht ab und wird nicht wiederholt (sofort nächste KI)', async () => {
   let n = 0;
   await assert.rejects(
     callWithRetry((signal) => { n++; return new Promise((_, rej) => signal.addEventListener('abort', () => rej(Object.assign(new Error('x'), { name: 'AbortError' })))); },
       { ...noSleep, timeoutMs: 20, maxRetries: 1 }),
     /Zeitüberschreitung/);
-  assert.equal(n, 2);
+  assert.equal(n, 1);
 });
 
 test('beat() hält lange Live-Antworten am Leben', async () => {

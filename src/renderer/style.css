@@ -667,3 +667,6 @@ body.view-netz .status { display: none; }
 .news li button:hover { color: var(--accent); }
 .news-err { margin: 0; font-size: 12px; color: var(--muted); }
 body.view-netz .kurven, body.view-netz .news { display: none; }
+
+#tempoAdv.dim { opacity: .4; }
+.badge.pause { background: rgba(255, 190, 90, .16); color: #ffcf7a; border-color: rgba(255, 190, 90, .4); }

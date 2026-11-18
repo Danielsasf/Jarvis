@@ -13,6 +13,7 @@ const { Memory, stripTags } = require('./memory');
 const { WakeWord } = require('./wake');
 const accountsLib = require('./accounts');
 const speed = require('./speed');
+const healthLib = require('./health');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
@@ -103,8 +104,16 @@ function normalize(c) {
   c.weather = { city: '', name: '', lat: null, lon: null, ...(c.weather || {}) };
   c.news = { enabled: true, ...(c.news || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
-  c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
-    race: true, hedgeSec: 5, speedOrder: true, fontSize: 14.5, ...(c.settings || {}) };
+  const oldS = c.settings || {};
+  const hadSettings = Object.keys(oldS).length > 0;
+  c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 25, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
+    race: false, hedgeSec: 5, speedOrder: false, sequential: true, fontSize: 14.5, ...oldS };
+  // Einmalig (3.1.0): bestehende Einstellungen auf "eine KI nach der anderen" umstellen
+  if (hadSettings && oldS.sequential === undefined) {
+    c.settings.sequential = true;
+    c.settings.speedOrder = false;
+    if (c.settings.timeoutSec === 60) c.settings.timeoutSec = 25;
+  }
   // alte Standard-Persönlichkeit aus V1 automatisch auf die neue (ohne Emojis) heben
   if (c.settings.systemPrompt.startsWith(OLD_DEFAULT_START)) c.settings.systemPrompt = DEFAULT_SYSTEM;
   return c;
@@ -157,6 +166,7 @@ function publicState() {
         id, type: acc.type, name: accountsLib.displayName(id, acc, t), desc: t.desc, local: !!t.local, custom: !!t.custom, base: acc.base || '',
         keyUrl: t.keyUrl, stt: !!t.stt, connected: true, enabled: acc.enabled !== false, model: acc.model || '', models: acc.models || [],
         ms: Number.isFinite(acc.ms) ? acc.ms : null,
+        pause: healthLib.isPaused(acc) ? { until: acc.pausedUntil, text: healthLib.untilText(acc.pausedUntil), reason: healthLib.reasonText(acc.pauseKind) } : null,
       };
     }),
     catalog: PROVIDERS.map((t) => ({ type: t.id, name: t.name, desc: t.desc, local: !!t.local, custom: !!t.custom, keyOptional: !!t.keyOptional, keyUrl: t.keyUrl })),
@@ -180,6 +190,13 @@ async function remoteApply() {
   try { await remote.start({ host, port: r.port }); } catch (err) { log(`Handy-Zugang konnte nicht starten: ${err.message}`); remote.stop(); }
 }
 const P = (id) => accountsLib.providerFor(id, cfg.accounts[id]);
+// Fehler einer KI merken: Limit leer / Schlüssel falsch / überlastet -> für eine Weile pausieren
+function noteFailure(id, err) {
+  const acc = cfg.accounts[id];
+  if (!acc) return;
+  const c = healthLib.classify(err, { local: P(id).local });
+  if (c && !healthLib.isPaused(acc) && healthLib.pause(acc, c)) log(`[${P(id).name}] pausiert bis ${healthLib.untilText(acc.pausedUntil)} (${healthLib.reasonText(c.kind)})`);
+}
 const activeChain = () => cfg.order.filter((id) => cfg.accounts[id] && cfg.accounts[id].enabled !== false);
 const orderedChain = () => (cfg.settings.speedOrder ? speed.sortBySpeed(activeChain(), (id) => cfg.accounts[id].ms) : activeChain());
 function recordSpeed(id, ms, ok = true) {
@@ -245,6 +262,11 @@ ipcMain.handle('provider:update', (_e, id, patch) => {
   return publicState();
 });
 
+ipcMain.handle('provider:unpause', (_e, id) => {
+  if (cfg.accounts[id]) { healthLib.clear(cfg.accounts[id]); saveCfg(); }
+  return publicState();
+});
+
 ipcMain.handle('order:set', (_e, order) => {
   if (Array.isArray(order) && order.length === cfg.order.length && order.every((id) => cfg.order.includes(id))) { cfg.order = order; saveCfg(); }
   return publicState();
@@ -261,6 +283,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (typeof patch.wakeWord === 'boolean') s.wakeWord = patch.wakeWord;
   if ('wakeWord' in patch || 'wakeSens' in patch) wake?.set(s.wakeWord, s.wakeSens);
   if (typeof patch.race === 'boolean') s.race = patch.race;
+  if (typeof patch.sequential === 'boolean') s.sequential = patch.sequential;
   if (typeof patch.speedOrder === 'boolean') s.speedOrder = patch.speedOrder;
   if (Number.isFinite(patch.hedgeSec)) s.hedgeSec = Math.min(30, Math.max(0, Math.round(patch.hedgeSec)));
   if (Number.isFinite(patch.timeoutSec)) s.timeoutSec = Math.min(300, Math.max(10, patch.timeoutSec));
@@ -332,12 +355,15 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
   const t0 = Date.now();
   let firstAt = null;
 
-  const chain = orderedChain().map((id) => {
+  const seq = cfg.settings.sequential !== false;
+  const arranged = healthLib.arrange(orderedChain(), cfg.accounts);
+  const chain = arranged.chain.map((id) => {
     const p = P(id);
     const s = cfg.accounts[id];
     const tried = [];
     return {
       id,
+      timeoutMs: p.local ? Math.max(90000, cfg.settings.timeoutSec * 1000) : 0,
       get label() { return `${p.name} · ${s.model}`; },
       run: (signal, beat, ctx) => {
         const both = AbortSignal.any([signal, abortSignal]);
@@ -361,13 +387,18 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
 
   try {
     const result = await runWithFallback(chain, {
-      log, timeoutMs: cfg.settings.timeoutSec * 1000, maxRetries: 2,
-      parallel: cfg.settings.race ? 2 : 1,
-      hedgeMs: cfg.settings.hedgeSec * 1000,
-      onSwitch: (step, failed) => onStatus({ phase: 'switch', provider: byId(step.id), failed: byId(failed.id) }),
+      log, timeoutMs: cfg.settings.timeoutSec * 1000, maxRetries: seq ? 1 : 2,
+      parallel: !seq && cfg.settings.race ? 2 : 1,
+      hedgeMs: seq ? 0 : cfg.settings.hedgeSec * 1000,
+      onSwitch: (step, failed) => {
+        noteFailure(failed.id, failed.err);
+        const c = healthLib.classify(failed.err, { local: P(failed.id).local });
+        onStatus({ phase: 'switch', provider: byId(step.id), failed: byId(failed.id), reason: c ? healthLib.reasonText(c.kind) : '' });
+      },
       onLaunch: (step, reason) => { if (reason === 'slow') onStatus({ phase: 'slow', provider: byId(step.id) }); },
     });
-    for (const f of result.failures) recordSpeed(f.id, f.ms, false);
+    for (const f of result.failures) { recordSpeed(f.id, f.ms, false); noteFailure(f.id, f.err); }
+    if (cfg.accounts[result.used.id] && healthLib.clear(cfg.accounts[result.used.id])) log(`[${P(result.used.id).name}] wieder verfügbar`);
     for (const l of result.losers) if (cfg.accounts[l.id] && l.ms >= 1000 && !(cfg.accounts[l.id].ms >= l.ms)) recordSpeed(l.id, l.ms, true); // abgebrochen: mindestens so langsam
     saveCfg();
     const mem = memory.apply(result.text);
@@ -381,7 +412,8 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     return { text: (stripTags(pr.clean).trim() + note).trim(), proposals, memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
   } catch (err) {
     if (abortSignal.aborted) return { stopped: true };
-    for (const f of err.failures || []) recordSpeed(f.id, f.ms, false);
+    for (const f of err.failures || []) { recordSpeed(f.id, f.ms, false); noteFailure(f.id, f.err); }
+    saveCfg();
     throw err;
   }
 }
