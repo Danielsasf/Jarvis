@@ -1,4 +1,4 @@
 {
-  "version": "2.12.0",
-  "notes": "Neu: Chat als Textdatei speichern (Pfeil-Knopf in der Seitenleiste beim Drüberfahren). Gebaut von Freebuff, geprüft von Claude."
+  "version": "2.13.0",
+  "notes": "Neu: Beim Update-Hinweis zeigt der Knopf \"Was ist neu?\" die Neuerungen. Gebaut von Freebuff, geprüft von Claude."
 }

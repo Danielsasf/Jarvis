@@ -1,2 +1,2 @@
 // Version dieses App-Codes. Bei jedem Update erhöhen.
-module.exports = { CODE_VERSION: '2.12.0', UPDATE_REPO: 'Danielsasf/jarvis' };
+module.exports = { CODE_VERSION: '2.13.0', UPDATE_REPO: 'Danielsasf/jarvis' };
