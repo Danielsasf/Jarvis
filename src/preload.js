@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   recheckRemote: () => call('remote:recheck'),
   onRemoteChat: on('chats:remote'),
   getWake: () => call('wake:get'),
+  getStats: () => call('sys:stats'),
   onWake: on('wake:event'),
   onLog: on('jarvis:log'),
   onState: on('jarvis:state'),

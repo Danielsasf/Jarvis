@@ -67,10 +67,26 @@
       }
       // 2) Rotierender Messring mit Lücken und Markierungen
       const r2 = R * (small ? 0.9 : 0.8);
-      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.22);
+      ctx.save(); ctx.shadowColor = c(0.85); ctx.shadowBlur = small ? 4 : 9;
+      ctx.translate(x, y); ctx.rotate(t * 0.22);
       for (const [a0, a1] of [[0.05, 1.3], [1.45, 2.05], [2.2, 3.9], [4.05, 4.45], [4.6, 6.1]]) arc(0, 0, r2, a0, a1, small ? 2 : 1.6, 0.9);
       for (let i = 0; i < 6; i++) tick(0, 0, (i / 6) * TAU, r2 - 6, r2 + 6, 1.2, 0.9);
       ctx.restore();
+      // 2b) Umlaufende Lichtpunkte mit Schweif
+      if (!small) {
+        ctx.save(); ctx.shadowColor = c(0.9); ctx.shadowBlur = 8;
+        for (const [rr, sp, ph] of [[0.8, 0.9, 0], [0.8, 0.9, Math.PI], [0.57, -1.3, 1]]) {
+          const a = t * sp + ph; const dir = sp > 0 ? -1 : 1;
+          for (let k = 0; k < 10; k++) arc(x, y, R * rr, a + dir * k * 0.045, a + dir * (k + 1) * 0.045, 2.2, 0.8 * (1 - k / 10));
+          ctx.beginPath(); ctx.arc(x + Math.cos(a) * R * rr, y + Math.sin(a) * R * rr, 2.6, 0, TAU); ctx.fillStyle = 'rgba(240,253,255,.95)'; ctx.fill();
+        }
+        ctx.restore();
+        // Warnfarbener Bogen innen, schneller beim Nachdenken
+        const hot = mode === 'thinking' ? 1 : mode === 'listening' ? 0.8 : 0.45;
+        ctx.save(); ctx.shadowColor = 'rgba(255,92,92,.9)'; ctx.shadowBlur = 8 * hot;
+        const ra = -t * (mode === 'thinking' ? 1.4 : 0.5);
+        ctx.beginPath(); ctx.arc(x, y, R * 0.52, ra, ra + 0.9); ctx.lineWidth = 2.4; ctx.strokeStyle = `rgba(255,96,96,${0.35 + 0.6 * hot})`; ctx.stroke(); ctx.restore();
+      }
       // 3) Gestrichelter Ring gegenläufig
       ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.35);
       ring(0, 0, R * (small ? 0.74 : 0.73), 1, 0.55, [2, 5]);
@@ -106,9 +122,10 @@
       // 6) Kern: scharfer Rand, heller Mittelpunkt
       const pulse = 1 + level * 0.28 + Math.sin(now / 1000) * 0.015;
       const cr = R * (small ? 0.42 : 0.24) * pulse;
+      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.16;
       const g = ctx.createRadialGradient(x, y, 0, x, y, cr);
       g.addColorStop(0, 'rgba(240,253,255,1)'); g.addColorStop(0.45, c(0.95)); g.addColorStop(0.92, c(0.55)); g.addColorStop(1, c(0.55));
-      ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore();
       ring(x, y, cr + 3, 1, 0.9);
       ring(x, y, cr + 7, 1, 0.35);
       requestAnimationFrame(frame);

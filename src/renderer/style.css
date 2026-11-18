@@ -499,3 +499,19 @@ body.chatting .core-wrap { width: clamp(112px, 18vh, 190px); height: clamp(112px
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ---------- Leitstand-Look 2.15: Ring-Anzeigen, Tagesleiste, Effekte ---------- */
+#fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+body > *:not(.grid-bg):not(.settings):not(.scrim):not(.toast):not(#fx) { position: relative; z-index: 1; }
+.day-strip { display: flex; justify-content: space-between; gap: 2px; padding: 5px 26px 0; font-family: var(--mono); font-size: 10.5px; color: var(--dim); flex: none; user-select: none; }
+.day-strip span { padding: 1px 3px; }
+.day-strip .today { color: #021018; background: var(--accent); box-shadow: 0 0 12px rgba(79, 227, 255, .7); font-weight: 700; }
+.col { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+.col.left { align-items: flex-end; } .col.right { align-items: flex-start; }
+.col .gauges { width: 100%; align-items: inherit; }
+.rings { display: flex; gap: 6px; }
+.rings canvas { width: 108px; height: 108px; display: block; filter: drop-shadow(0 0 6px rgba(79, 227, 255, .25)); }
+body.chatting .rings, body.chatting .day-strip { display: none; }
+@media (max-width: 1040px) { .col { display: none; } .day-strip { display: none; } }
+@media (max-height: 760px) { .rings canvas { width: 86px; height: 86px; } }
+@media (max-height: 640px) { .rings { display: none; } }

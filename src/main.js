@@ -16,6 +16,7 @@ const mailLib = require('./mail');
 const calLib = require('./calendar');
 const gcalLib = require('./gcal');
 const notifyLib = require('./notify');
+const os = require('os');
 const chatExport = require('./chatExport');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
@@ -594,6 +595,17 @@ ipcMain.handle('chats:export', async (_e, chat = {}) => {
   fs.writeFileSync(r.filePath, text, 'utf8');
   log(`Chat als Textdatei gespeichert (${Array.isArray(chat.messages) ? chat.messages.length : 0} Nachrichten)`);
   return { saved: true, file: r.filePath };
+});
+
+// ---------- Systemwerte für die Ring-Anzeigen (nur Prozent, keine Dateien/Namen) ----------
+let lastCpu = os.cpus().map((c) => ({ ...c.times }));
+ipcMain.handle('sys:stats', () => {
+  const now = os.cpus().map((c) => ({ ...c.times }));
+  let idle = 0; let total = 0;
+  now.forEach((t, i) => { const p = lastCpu[i] || t; for (const k of Object.keys(t)) { const d = t[k] - (p[k] || 0); total += d; if (k === 'idle') idle += d; } });
+  lastCpu = now;
+  const cpu = total > 0 ? Math.round((1 - idle / total) * 100) : 0;
+  return { cpu: Math.max(0, Math.min(100, cpu)), ram: Math.round((1 - os.freemem() / os.totalmem()) * 100) };
 });
 
 // ---------- Pakete ----------

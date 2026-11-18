@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <canvas id="fx" aria-hidden="true"></canvas>
   <div class="grid-bg" aria-hidden="true"></div>
 
   <header class="topbar">
@@ -39,20 +40,27 @@
     </div>
   </aside>
   <div class="content">
+  <div class="day-strip" id="dayStrip" aria-hidden="true"></div>
   <section class="stage">
-    <dl class="gauges left">
-      <div class="gauge"><dt>Verbindung</dt><dd id="roLink">—</dd></div>
-      <div class="gauge"><dt>Reaktion</dt><dd id="roSpeed">—</dd></div>
-      <div class="gauge"><dt>KIs aktiv</dt><dd id="roCount">00</dd></div>
-    </dl>
+    <div class="col left">
+      <div class="rings"><canvas id="ringCpu" title="Prozessor-Auslastung"></canvas><canvas id="ringRam" title="Arbeitsspeicher"></canvas></div>
+      <dl class="gauges left">
+        <div class="gauge"><dt>Verbindung</dt><dd id="roLink">—</dd></div>
+        <div class="gauge"><dt>Reaktion</dt><dd id="roSpeed">—</dd></div>
+        <div class="gauge"><dt>KIs aktiv</dt><dd id="roCount">00</dd></div>
+      </dl>
+    </div>
     <div class="core-wrap">
       <canvas id="core"></canvas>
     </div>
-    <dl class="gauges right">
-      <div class="gauge"><dt>Systemzeit</dt><dd id="roClock">--:--:--</dd></div>
-      <div class="gauge click" id="roMemoryBox" title="Gedächtnis öffnen"><dt>Gedächtnis</dt><dd id="roMemory">0</dd></div>
-      <div class="gauge"><dt>Weckwort</dt><dd id="roWake">aus</dd></div>
-    </dl>
+    <div class="col right">
+      <div class="rings"><canvas id="ringTime" title="Uhrzeit"></canvas><canvas id="ringDate" title="Datum"></canvas></div>
+      <dl class="gauges right">
+        <div class="gauge"><dt>Systemzeit</dt><dd id="roClock">--:--:--</dd></div>
+        <div class="gauge click" id="roMemoryBox" title="Gedächtnis öffnen"><dt>Gedächtnis</dt><dd id="roMemory">0</dd></div>
+        <div class="gauge"><dt>Weckwort</dt><dd id="roWake">aus</dd></div>
+      </dl>
+    </div>
   </section>
   <p class="status" id="status"><span class="dot"></span><span id="statusText">BEREIT</span></p>
 
@@ -315,6 +323,7 @@
   <div class="toast" id="toast"></div>
 
   <script src="hud.js"></script>
+  <script src="widgets.js"></script>
   <script src="speech.js"></script>
   <script src="render.js"></script>
   <script src="app.js"></script>

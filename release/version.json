@@ -1,4 +1,4 @@
 {
-  "version": "2.14.0",
-  "notes": "Neu: Schriftgröße im Chat einstellbar (Einstellungen > System & Updates) und ein neuer, ruhigerer Look. Gebaut von Freebuff, geprüft von Claude."
+  "version": "2.15.0",
+  "notes": "Look-Update: Ring-Anzeigen (CPU, Speicher, Uhrzeit, Datum), Tagesleiste, leuchtender Kern mit Lichtpunkten, Hintergrund-Effekte. Im Chat bleibt alles kompakt."
 }
