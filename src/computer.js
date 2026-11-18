@@ -37,12 +37,12 @@ const CAPS = {
 };
 
 const defaults = () => ({ enabled: false, caps: Object.fromEntries(Object.keys(CAPS).map((k) => [k, false])),
-  apps: Object.fromEntries(Object.keys(APPS).map((k) => [k, false])), folders: Object.fromEntries(Object.keys(FOLDERS).map((k) => [k, false])), customApps: [] });
+  apps: Object.fromEntries(Object.keys(APPS).map((k) => [k, false])), folders: Object.fromEntries(Object.keys(FOLDERS).map((k) => [k, false])), customApps: [], ollamaParse: true });
 
 function normalize(c) {
   const d = defaults();
   const o = c && typeof c === 'object' ? c : {};
-  const out = { enabled: o.enabled === true, caps: { ...d.caps }, apps: { ...d.apps }, folders: { ...d.folders }, customApps: [] };
+  const out = { enabled: o.enabled === true, caps: { ...d.caps }, apps: { ...d.apps }, folders: { ...d.folders }, customApps: [], ollamaParse: o.ollamaParse !== false };
   for (const k of Object.keys(d.caps)) out.caps[k] = o.caps?.[k] === true;
   for (const k of Object.keys(d.apps)) out.apps[k] = o.apps?.[k] === true;
   for (const k of Object.keys(d.folders)) out.folders[k] = o.folders?.[k] === true;
@@ -216,6 +216,7 @@ function publicView(c) {
     apps: Object.entries(APPS).map(([id, a]) => ({ id, label: a.label, on: c.apps[id] })),
     folders: Object.entries(FOLDERS).map(([id, f]) => ({ id, label: f.label, on: c.folders[id] })),
     customApps: c.customApps.map((a) => ({ id: a.id, name: a.name, path: a.path, on: a.on })),
+    ollamaParse: c.ollamaParse !== false,
   };
 }
 

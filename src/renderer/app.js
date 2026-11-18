@@ -170,6 +170,26 @@ function fmtEventMs(ms, allDay) {
   return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) + (allDay ? ' (ganztägig)' : ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
 }
 // Bestätigungskarte: Jarvis trägt nur nach Klick auf „Eintragen“ etwas ein
+// Vorschlag der lokalen KI: wird erst mit Klick ausgeführt
+function addPending(bubble, p) {
+  const row = document.createElement('div');
+  row.className = 'pending-row';
+  const btn = document.createElement('button');
+  btn.className = 'primary small';
+  btn.textContent = 'Ausführen';
+  const txt = document.createElement('span');
+  txt.className = 'muted';
+  txt.textContent = ` ${p.text}`;
+  row.append(btn, txt);
+  bubble.appendChild(row);
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const r = await jarvis.runComputer(p.action);
+    row.remove();
+    addStep(bubble, `Computer: ${r.text}`, !r.ok);
+  };
+}
+
 function addProposal(bubble, p) {
   if (ui.hideChat) { setUi({ hideChat: false }); toast('Jarvis möchte etwas bestätigen – Verlauf geöffnet.'); }
   const card = document.createElement('div');
@@ -405,6 +425,7 @@ async function sendMessage(text) {
     if (isShown(run)) {
       paint(run, true);
       addMeta(run.bubble, res.text, res);
+      for (const p of res.pending || []) addPending(run.bubble, p);
       for (const x of res.actions || []) {
         addStep(run.bubble, x.ok ? `Computer: ${x.text}` : `Computer: ${x.text}`, !x.ok);
         if (x.files) addStep(run.bubble, x.files.length ? `Gefunden:\n${x.files.join('\n')}` : 'Nichts gefunden.', !x.files.length);
@@ -486,6 +507,7 @@ jarvis.onStatus((s) => {
   if (s.phase === 'mail') addStep(run.bubble, 'Lese deine E-Mails (nur lesen) …');
   if (s.phase === 'cal') addStep(run.bubble, 'Schaue in deinen Kalender (nur lesen) …');
   if (s.phase === 'web') addStep(run.bubble, 'Suche kurz im Internet …');
+  if (s.phase === 'local') addStep(run.bubble, 'Erkenne den Befehl lokal (Ollama) …');
   if (s.phase === 'streaming') run.bubble.querySelectorAll('.steps > div').forEach((d) => { if (!/^› (Paket|Lese deine|Schaue in|Suche kurz)/.test(d.textContent)) d.remove(); });
 });
 
@@ -710,6 +732,7 @@ $('addForm').addEventListener('click', async (e) => {
 function renderComputer() {
   const c = state.computer; if (!c) return;
   $('compMaster').checked = c.enabled;
+  $('compOllama').checked = c.ollamaParse !== false;
   const row = (title, desc, checked, attrs, cls = '') => `<div class="setting ${cls}"><div><b>${escapeHtml(title)}</b>${desc ? `<small>${escapeHtml(desc)}</small>` : ''}</div><label class="switch"><input type="checkbox" ${checked ? 'checked' : ''} ${attrs}><span></span></label></div>`;
   let html = '';
   for (const cap of c.caps) {
@@ -726,6 +749,7 @@ function renderComputer() {
   body.dataset.sig = JSON.stringify(c);
   body.innerHTML = html;
 }
+$('compOllama').onchange = async (e) => { state = await jarvis.setComputer({ ollamaParse: e.target.checked }); };
 $('compMaster').onchange = async (e) => { state = await jarvis.setComputer({ enabled: e.target.checked }); renderComputer(); };
 $('compAll').onclick = async () => { if (confirm('Wirklich ALLES erlauben? Jarvis darf dann alle Fähigkeiten dieser Liste nutzen.')) { state = await jarvis.setComputer({ all: true }); renderComputer(); } };
 $('compNone').onclick = async () => { state = await jarvis.setComputer({ all: false }); renderComputer(); toast('Alles gesperrt'); };

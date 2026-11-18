@@ -17,6 +17,7 @@ const healthLib = require('./health');
 const historyLib = require('./history');
 const webLib = require('./websearch');
 const computerLib = require('./computer');
+const localParse = require('./localparse');
 const { spawn } = require('child_process');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
@@ -273,6 +274,12 @@ ipcMain.handle('provider:update', (_e, id, patch) => {
   return publicState();
 });
 
+const computerDeps = () => ({ shell, spawn, getPath: (k) => app.getPath(k), fsp: require('fs/promises') });
+ipcMain.handle('computer:run', async (_e, a) => {
+  const r = await computerLib.run(cfg.computer, a || {}, computerDeps());
+  log(`Computer (Knopf): ${a?.typ} -> ${r.ok ? 'ok' : 'abgelehnt'} (${r.text})`);
+  return r;
+});
 ipcMain.handle('computer:set', (_e, patch = {}) => {
   const c = cfg.computer;
   if (typeof patch.enabled === 'boolean') c.enabled = patch.enabled;
@@ -281,6 +288,7 @@ ipcMain.handle('computer:set', (_e, patch = {}) => {
   if (patch.cap) set(c.caps, String(patch.cap.id), patch.cap.on);
   if (patch.app) set(c.apps, String(patch.app.id), patch.app.on);
   if (patch.folder) set(c.folders, String(patch.folder.id), patch.folder.on);
+  if (typeof patch.ollamaParse === 'boolean') c.ollamaParse = patch.ollamaParse;
   if (patch.custom && typeof patch.custom.on === 'boolean') { const a = c.customApps.find((x) => x.id === String(patch.custom.id)); if (a) a.on = patch.custom.on; }
   saveCfg();
   log(`Computer-Steuerung geändert: ${JSON.stringify(Object.keys(patch))}`);
@@ -359,6 +367,25 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     invoked = hit.pack;
     last.content = hit.rest || `Ich möchte das Paket „${invoked.name}“ nutzen. Sag kurz, wobei du helfen kannst, und frag, womit wir anfangen.`;
     onStatus({ phase: 'pack', pack: invoked.name });
+  }
+  // Befehl am PC: zuerst die lokale Ollama-KI (kostenlos). Sie schlägt nur vor, der Nutzer bestätigt.
+  if (canPropose && cfg.computer.enabled && cfg.computer.ollamaParse !== false && last?.role === 'user' && computerLib.looksLikeCommand(last.content)) {
+    const oid = cfg.order.find((id) => cfg.accounts[id]?.type === 'ollama' && cfg.accounts[id].enabled !== false && !healthLib.isPaused(cfg.accounts[id]));
+    if (oid) {
+      onStatus({ phase: 'local' });
+      const t1 = Date.now();
+      try {
+        const hit2 = await localParse.parse(cfg.computer, last.content, {
+          provider: P(oid), key: decrypt(cfg.accounts[oid].key), model: cfg.accounts[oid].model, chatStream,
+          signal: AbortSignal.any([abortSignal, AbortSignal.timeout(20000)]),
+        });
+        if (hit2) {
+          log(`Lokale Befehlserkennung (${P(oid).name}): ${hit2.text}`);
+          return { text: `Verstanden: ${hit2.text}. Soll ich das ausführen?`, actions: [], pending: [{ action: hit2.action, text: hit2.text }],
+            proposals: [], memorySaved: [], memoryForgotten: [], pack: null, by: `${P(oid).name} · kostenlos`, providerId: oid, fallbacks: [], firstMs: null, totalMs: Date.now() - t1 };
+        }
+      } catch (err) { log(`Lokale Befehlserkennung übersprungen: ${String(err.message).slice(0, 100)}`); }
+    }
   }
   let system = buildSystem(invoked);
   let tainted = false; // Inhalte von außen (Web, Mail, Kalender) im Prompt: dann führt Jarvis keine Computer-Aktionen aus
@@ -465,7 +492,7 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
       else if (tainted) actions.push({ ok: false, text: 'Nicht ausgeführt: In dieser Antwort stecken Inhalte aus dem Internet, E-Mails oder dem Kalender. Sag den Befehl bitte noch einmal ohne diese Frage.' });
       else {
         for (const a of ca.actions) {
-          const r = await computerLib.run(cfg.computer, a, { shell, spawn, getPath: (k) => app.getPath(k), fsp: require('fs/promises') });
+          const r = await computerLib.run(cfg.computer, a, computerDeps());
           log(`Computer: ${a.typ} -> ${r.ok ? 'ok' : 'abgelehnt'} (${r.text})`);
           actions.push(r);
         }

@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 3.4.0 (Claude): localparse.js: lokale Ollama-KI wandelt Befehl in genau eine erlaubte Aktion (JSON), nur Vorschlag mit Knopf Ausführen (addPending, IPC computer:run). Läuft vor der Cloud-Kette, nur im PC-Fenster, Schalter cfg.computer.ollamaParse. Tests teil20.
 - 3.3.0 (Claude): computer.js: Computer-Steuerung per <aktion>JSON</aktion> (programm_oeffnen, ordner_zeigen, dateien_suchen, webseite_oeffnen, medien_steuern), alles aus als Standard, Hauptschalter + Einzelschalter (cfg.computer), nur PC-Fenster (canPropose), keine Ausführung wenn Web/Mail/Kalender im Prompt (tainted), nichts Löschendes. Einstellungsseite Computer, IPC computer:set/addApp/removeApp. Tests teil19.
 - 3.2.0 (Claude): websearch.js: needsWeb (Schlüsselwörter), search via DuckDuckGo-HTML (kein Schlüssel), parseResults/realLink (nur https), promptBlock. runChat sucht bei aktuellen Fragen (phase web), Schalter settings.webSearch (Standard an). Test teil18.
 - 3.1.3 (Claude): Spracheingabe nutzt health.arrange und noteFailure (Pause bei leerem Guthaben), maxRetries 0, klare Meldung bei aufgebrauchtem Limit.

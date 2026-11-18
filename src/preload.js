@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   addAccount: (data) => call('account:add', data),
   disconnect: (id) => call('provider:disconnect', id),
   updateProvider: (id, patch) => call('provider:update', id, patch),
+  runComputer: (action) => call('computer:run', action),
   setComputer: (patch) => call('computer:set', patch),
   addComputerApp: () => call('computer:addApp'),
   removeComputerApp: (id) => call('computer:removeApp', id),

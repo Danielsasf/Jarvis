@@ -356,6 +356,10 @@
             <div><b>Computer-Steuerung einschalten</b><small>Hauptschalter. Aus: Jarvis macht nichts am Computer, egal was unten steht.</small></div>
             <label class="switch"><input type="checkbox" id="compMaster"><span></span></label>
           </div>
+          <div class="setting">
+            <div><b>Lokale KI erkennt Befehle</b><small>Befehle wie „Öffne den Rechner“ versteht zuerst deine Ollama-KI auf dem PC. Kostet nichts und spart Kontingent. Sie führt nichts aus: du klickst auf „Ausführen“.</small></div>
+            <label class="switch"><input type="checkbox" id="compOllama"><span></span></label>
+          </div>
           <div class="row"><button class="ghost" id="compAll">Alles erlauben</button><button class="ghost" id="compNone">Alles sperren</button></div>
           <div id="compBody"></div>
         </section>

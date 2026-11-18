@@ -1,4 +1,4 @@
 {
-  "version": "3.3.0",
-  "notes": "Computer-Steuerung: Programme öffnen, Ordner zeigen, Dateien suchen, Webseiten, Medien. Jede Fähigkeit einzeln in den Einstellungen, standardmäßig aus. Löschen und Ändern gibt es nicht."
+  "version": "3.4.0",
+  "notes": "Lokale Befehlserkennung: Ollama versteht Computer-Befehle kostenlos, Ausführen nur nach Klick, nur erlaubte Aktionen."
 }
