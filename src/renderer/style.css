@@ -593,3 +593,38 @@ body.view-netz .stage, body.view-netz .day-strip, body.view-netz main, body.view
 
 .nz-top .t-hub { background: #ebfaff; } .nz-top .t-pack { background: #ffce60; } .nz-top .t-ki { background: #60f0c8; } .nz-top .t-memory { background: #60beff; } .nz-top .t-chat { background: #ff96c8; }
 body.view-netz .status { display: none; }
+
+/* Update-Hinweis immer gut sichtbar oben in der Mitte (2.21.1) */
+.update-banner { position: fixed !important; top: 66px; left: 50%; transform: translateX(-50%); z-index: 60; margin: 0 !important; box-shadow: 0 0 28px rgba(79, 227, 255, .45); background: rgba(4, 16, 26, .96); border: 1px solid var(--accent); }
+.update-notes { position: fixed; top: 112px; left: 50%; transform: translateX(-50%); z-index: 60; width: min(760px, calc(100% - 28px)); margin: 0 !important; border: 1px solid var(--line-3, rgba(79,227,255,.35)); }
+
+/* ---------- Look 2.22: Ecken-Klammern, Scanlinie, Leuchten ---------- */
+.gauge, .wx, .nz-card, .statusbox > div, .update-banner {
+  background-image:
+    linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+    linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+    linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+    linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent));
+  background-repeat: no-repeat;
+  background-size: 9px 1.5px, 1.5px 9px, 9px 1.5px, 1.5px 9px, 9px 1.5px, 1.5px 9px, 9px 1.5px, 1.5px 9px;
+  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
+}
+.topbar { position: relative; }
+.topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 30% 100%; background-repeat: no-repeat; }
+.brand-name { text-shadow: 0 0 18px rgba(79, 227, 255, .6); }
+.top-btn:hover { box-shadow: 0 0 14px rgba(79, 227, 255, .45); }
+.gauge dd, .nz-mode, .wx-now strong { text-shadow: 0 0 12px rgba(79, 227, 255, .55); }
+.day-strip .today { animation: none; }
+.grid-bg::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 160px; pointer-events: none; background: linear-gradient(180deg, transparent, rgba(79, 227, 255, .07), transparent); transform: translateY(-160px); }
+@media (prefers-reduced-motion: no-preference) {
+  .topbar::after { animation: sweep 5s linear infinite; }
+  .grid-bg::after { animation: scan2 7s linear infinite; }
+  .gauge, .wx, .nz-card, .statusbox > div { animation: edge 4.5s ease-in-out infinite; }
+  .gauge:nth-child(2) { animation-delay: .8s; } .gauge:nth-child(3) { animation-delay: 1.6s; }
+  .day-strip .today { animation: edge-glow 2s ease-in-out infinite; }
+  .status .dot { animation-duration: 1s; }
+}
+@keyframes sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@keyframes scan2 { from { transform: translateY(-160px); } to { transform: translateY(110vh); } }
+@keyframes edge { 0%, 100% { border-color: var(--line); } 50% { border-color: rgba(79, 227, 255, .5); box-shadow: 0 0 12px rgba(79, 227, 255, .12); } }
+@keyframes edge-glow { 0%, 100% { box-shadow: 0 0 8px rgba(79, 227, 255, .5); } 50% { box-shadow: 0 0 20px rgba(79, 227, 255, .95); } }

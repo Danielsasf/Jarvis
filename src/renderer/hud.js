@@ -68,12 +68,14 @@
       }
       // 1) Gradskala (fest): 180 Striche, alle 30° beschriftet
       if (!small) {
-        for (let i = 0; i < 180; i++) {
-          const a = (i / 180) * TAU - Math.PI / 2;
-          const major = i % 15 === 0; const mid = i % 5 === 0;
-          tick(x, y, a, R * (major ? 0.905 : mid ? 0.93 : 0.945), R * 0.97, major ? 1.4 : 1, major ? 0.95 : mid ? 0.6 : 0.3);
+        for (let i = 0; i < 360; i++) {
+          const a = (i / 360) * TAU - Math.PI / 2;
+          const major = i % 30 === 0; const ten = i % 10 === 0; const five = i % 5 === 0;
+          tick(x, y, a, R * (major ? 0.9 : ten ? 0.925 : five ? 0.94 : 0.953), R * 0.97, major ? 1.6 : 0.9, major ? 1 : ten ? 0.75 : five ? 0.5 : 0.28);
         }
-        ctx.font = `${Math.max(8, R * 0.045)}px "Cascadia Mono", Consolas, monospace`;
+        // Zeiger: aktuelle Drehung als heller Strich auf der Skala
+        { const pa = (t * 22 % 360) / 360 * TAU - Math.PI / 2; tick(x, y, pa, R * 0.885, R * 0.985, 2, 1); }
+        ctx.font = `${Math.max(8, R * 0.04)}px "Cascadia Mono", Consolas, monospace`;
         ctx.fillStyle = c(0.7); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         for (let d = 0; d < 360; d += 30) {
           const a = (d / 360) * TAU - Math.PI / 2;
@@ -122,16 +124,16 @@
       ring(0, 0, R * (small ? 0.74 : 0.73), 1, 0.55, [2, 5]);
       ctx.restore();
       // 4) Segment-Ring: Anzahl leuchtender Segmente = Pegel/Aktivität
-      const segs = small ? 24 : 48;
+      const segs = small ? 24 : 96;
       const r4 = R * (small ? 0.62 : 0.66);
       const lit = mode === 'thinking' ? null : Math.round(Math.min(1, 0.18 + level) * segs);
       ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.08);
       for (let i = 0; i < segs; i++) {
-        const a0 = (i / segs) * TAU; const a1 = a0 + (TAU / segs) * 0.62;
+        const a0 = (i / segs) * TAU; const a1 = a0 + (TAU / segs) * 0.7;
         let on;
         if (lit === null) { const head = (t * 1.6) % 1 * segs; on = ((i - head + segs) % segs) < segs * 0.3 ? 0.95 - (((i - head + segs) % segs) / (segs * 0.3)) * 0.75 : 0.12; }
         else on = i < lit ? 0.9 : 0.14;
-        arc(0, 0, r4, a0, a1, small ? 3 : 5, on);
+        arc(0, 0, r4, a0, a1, small ? 3 : 3, on);
       }
       ctx.restore();
       // 5) Innenringe + Fadenkreuz
@@ -169,7 +171,7 @@
           const N = 72; const ay = t * sp * 0.6; let prev = null;
           for (let i = 0; i <= N; i++) {
             const a = (i / N) * TAU; const v = rot(Math.cos(a), 0, Math.sin(a), ay, tilt);
-            const pt = P(v, cr * (1 + rf * 1.15)); if (prev && ((prev[2] + pt[2]) / 2 > 0) === front) seg3(prev, pt, front ? 1.8 : 1.1, 0.85); prev = pt;
+            const pt = P(v, cr * (1 + rf * 1.15)); if (prev && ((prev[2] + pt[2]) / 2 > 0) === front) seg3(prev, pt, front ? 1.4 : 0.9, 0.9); prev = pt;
           }
           const sa = t * (1.6 + oi * 0.5) * (oi % 2 ? -1 : 1); const sv = rot(Math.cos(sa), 0, Math.sin(sa), ay, tilt); const sp3 = P(sv, cr * (1 + rf * 1.15));
           if ((sp3[2] > 0) === front) {
@@ -183,19 +185,19 @@
       const g = ctx.createRadialGradient(x - cr * 0.3, y - cr * 0.35, cr * 0.05, x, y, cr);
       g.addColorStop(0, 'rgba(235,252,255,.95)'); g.addColorStop(0.35, c(0.75)); g.addColorStop(0.8, c(0.3)); g.addColorStop(1, c(0.12));
       ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-      const meridians = small ? 6 : 10; const parallels = small ? 4 : 7;
+      const meridians = small ? 6 : 14; const parallels = small ? 4 : 9;
       for (let m = 0; m < meridians; m++) {
         const lon = (m / meridians) * Math.PI; let prev = null;
         for (let i = 0; i <= 48; i++) {
           const a = (i / 48) * TAU; const v = rot(Math.cos(a) * Math.cos(lon), Math.sin(a), Math.cos(a) * Math.sin(lon), spinY, tiltX);
-          const pt = P(v, cr); if (prev) seg3(prev, pt, 1.2, 0.85, '4,28,44'); prev = pt;
+          const pt = P(v, cr); if (prev) seg3(prev, pt, 0.9, 0.85, '4,28,44'); prev = pt;
         }
       }
       for (let l = 1; l <= parallels; l++) {
         const lat = (l / (parallels + 1)) * Math.PI - Math.PI / 2; const rr = Math.cos(lat); let prev = null;
         for (let i = 0; i <= 48; i++) {
           const a = (i / 48) * TAU; const v = rot(Math.cos(a) * rr, Math.sin(lat), Math.sin(a) * rr, spinY, tiltX);
-          const pt = P(v, cr); if (prev) seg3(prev, pt, 1.2, 0.85, '4,28,44'); prev = pt;
+          const pt = P(v, cr); if (prev) seg3(prev, pt, 0.9, 0.85, '4,28,44'); prev = pt;
         }
       }
       // Kristall im Inneren (Ikosaeder), dreht gegenläufig auf zwei Achsen
@@ -212,6 +214,25 @@
         ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.5);
         for (let i = 0; i < 24; i++) { const a = (i / 24) * TAU; tick(0, 0, a, cr * 2.55, cr * 2.55 + (i % 2 ? 5 : 10), 1.4, 0.9); }
         ctx.restore();
+      }
+      if (!small) {
+        // Datenring: wechselnde Hex-Zeichen laufen um den Kern
+        if (now - (frame.dataT || 0) > 260) { frame.dataT = now; frame.data = Array.from({ length: 40 }, () => '0123456789ABCDEF'[(Math.random() * 16) | 0]); }
+        ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.18); ctx.font = `${Math.max(7, R * 0.032)}px "Cascadia Mono", Consolas, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        (frame.data || []).forEach((ch, i) => { const a = (i / 40) * TAU; ctx.save(); ctx.rotate(a); ctx.translate(0, -R * 0.615); ctx.fillStyle = c(0.35 + 0.45 * ((i + Math.floor(t * 3)) % 5 === 0)); ctx.fillText(ch, 0, 0); ctx.restore(); });
+        ctx.restore();
+        // Zielklammern um die Kugel
+        const bk = cr * 1.32; const bl = cr * 0.28;
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          ctx.beginPath(); ctx.moveTo(x + sx * bk, y + sy * (bk - bl)); ctx.lineTo(x + sx * bk, y + sy * bk); ctx.lineTo(x + sx * (bk - bl), y + sy * bk);
+          ctx.lineWidth = 1.5; ctx.strokeStyle = c(0.95); ctx.stroke();
+        }
+        // Messwerte in den Ecken
+        ctx.font = `${Math.max(8, R * 0.036)}px "Cascadia Mono", Consolas, monospace`; ctx.fillStyle = c(0.85); ctx.textBaseline = 'top';
+        ctx.textAlign = 'left'; ctx.fillText(`ROT ${(t * 22 % 360).toFixed(1).padStart(5, '0')}°`, x - R * 0.97, y - R * 0.97);
+        ctx.textAlign = 'right'; ctx.fillText(`LVL ${level.toFixed(2)}`, x + R * 0.97, y - R * 0.97);
+        ctx.textBaseline = 'bottom'; ctx.textAlign = 'left'; ctx.fillText(mode.toUpperCase(), x - R * 0.97, y + R * 0.97);
+        ctx.textAlign = 'right'; ctx.fillText(`T+${(t % 1000).toFixed(1)}`, x + R * 0.97, y + R * 0.97);
       }
       ring(x, y, cr + 3, 1, 0.9);
       ring(x, y, cr + 7, 1, 0.35);
