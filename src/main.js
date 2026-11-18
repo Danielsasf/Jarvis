@@ -41,6 +41,11 @@ const WIDGET_GUIDE = `Darstellung (Jarvis zeigt das grafisch an):
   {"typ":"zeitplan","titel":"…","eintraege":[{"zeit":"09:00","text":"…"}]}
 - Tafeln und Widgets nur, wenn sie wirklich helfen. Kurze Fragen bekommen kurze Antworten ohne Widget.`;
 
+const LANGUAGE_GUIDE = `Sprache (sehr wichtig):
+- Schreibe ausschließlich in korrektem, natürlichem Hochdeutsch. Wechsle nie in eine andere Sprache und mische keine englischen, chinesischen oder andern fremden Wörter oder Schriftzeichen ein. Englische Fachwörter nur, wenn es dafür kein gebräuchliches deutsches Wort gibt.
+- Achte auf Rechtschreibung, Grammatik, Groß- und Kleinschreibung, richtige Artikel und Fälle. Benutze echte Umlaute (ä, ö, ü, ß), niemals ae/oe/ue.
+- Kurze, einfache Sätze. Keine erfundenen Wörter. Lies deine Antwort vor dem Senden gedanklich noch einmal durch.`;
+
 const MEMORY_GUIDE = `Gedächtnis:
 - Wenn der Nutzer etwas Dauerhaftes über sich erzählt (Name, Vorlieben, Ziele, wichtige Termine) oder dich bittet, dir etwas zu merken, schreib ganz am Ende deiner Antwort <merken>kurzer Fakt</merken> (ein Tag pro Fakt).
 - Merk dir keine Passwörter, Schlüssel, Konto- oder Ausweisnummern.
@@ -65,7 +70,7 @@ function buildSystem(invoked) {
   const now = new Date();
   const parts = [cfg.settings.systemPrompt,
     `Heute ist ${now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr.`,
-    WIDGET_GUIDE, MEMORY_GUIDE];
+    WIDGET_GUIDE, MEMORY_GUIDE, LANGUAGE_GUIDE];
   const mem = memory.promptBlock();
   parts.push(mem ? `Was du über den Nutzer weißt:\n${mem}` : 'Du weißt noch nichts Persönliches über den Nutzer.');
   const active = packs.filter(packOn);
