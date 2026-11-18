@@ -894,6 +894,29 @@ $('wakeSens').onchange = async (e) => { state = await jarvis.setSettings({ wakeS
 $('voiceSelect').onchange = async (e) => { state = await jarvis.setSettings({ voice: e.target.value }); };
 $('rateRange').oninput = (e) => { $('rateLabel').textContent = `${Number(e.target.value).toLocaleString('de-DE')}×`; };
 $('rateRange').onchange = async (e) => { state = await jarvis.setSettings({ rate: Number(e.target.value) }); };
+
+// Schriftgröße im Chat: nur die Anzeige wird skaliert, gespeicherte Chats bleiben unverändert.
+const DEFAULT_FONT = 14.5;
+const fontPx = () => {
+  const n = Number(state?.settings?.fontSize);
+  return Number.isFinite(n) && n >= 12 && n <= 22 ? n : DEFAULT_FONT;
+};
+function applyFont(px) { document.documentElement.style.setProperty('--font-scale', String(px / DEFAULT_FONT)); }
+function renderFont() {
+  const px = fontPx();
+  applyFont(px);
+  $('fontRange').value = String(px);
+  $('fontLabel').textContent = `${px.toLocaleString('de-DE')} px`;
+}
+$('fontRange').oninput = (e) => {
+  const px = Number(e.target.value);
+  applyFont(px);
+  $('fontLabel').textContent = `${px.toLocaleString('de-DE')} px`;
+};
+$('fontRange').onchange = async (e) => {
+  state = await jarvis.setSettings({ fontSize: Number(e.target.value) });
+  renderAll();
+};
 $('voiceTest').onclick = () => speaker.sayAll('Hallo, ich bin Jarvis. So klinge ich mit diesen Einstellungen.');
 
 function beep() {
@@ -929,6 +952,7 @@ jarvis.onWake((w) => {
 
 function renderAll() {
   renderVoice();
+  renderFont();
   renderProviders();
   renderPacks();
   renderSidePacks();

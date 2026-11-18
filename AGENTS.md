@@ -39,7 +39,12 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.14.0 (Buffy, geprüft+veröffentlicht von Claude): Schriftgröße im Chat einstellbar (Einstellungen > System & Updates > Darstellung) und neuer „Kommandobrücken“-Look für Chat, Seitenleiste, Einstellungen.
 - 2.13.0 (Buffy, geprüft+veröffentlicht von Claude): „Was ist neu?“ beim Update – die schon vorhandenen Notizen aus `release/version.json`/GitHub-Release werden im Update-Hinweis gezeigt (3 Zeilen sichtbar, aufklappbar, Text escaped). Nur Anzeige, kein neuer Netzwerkcode.
+- 2.12.0 (Buffy, ohne Versionserhöhung): Sichtprüfung des neuen Aussehens (Chat, Seitenleiste, Einstellungen, auch 520 px breit). Korrekturen nur in `src/renderer/style.css`: Einstellungsrahmen passt jetzt in 800 px Höhe, Messfelder/Selects laufen nicht mehr aus den Karten (Flex-Zeilen mit Umbruch statt fester Prozentbreiten), Knöpfe brechen nicht mehr mitten im Wort, sticky Überschrift ist deckend, Nav-Scrollbalken und leere Statusboxen stören nicht mehr, Chat hat unten Luft.
+- 2.12.0 (Buffy, ohne Versionserhöhung): Neues Aussehen – Kommandobrücken-Look mit Tiefe (Verläufe, Leisten, Raster, Lauflicht), überarbeitete Seitenleiste, Messfelder, Chatkarten, Eingabe und Einstellungen (sticky Kopfzeile, Karten-Zeilen, Nav-Markierung). Nur `src/renderer/style.css`, keine Funktion und keine Klassen-Namen geändert.
+- 2.12.0 (Buffy, ohne Versionserhöhung): Schriftgröße im Chat einstellbar (Einstellungen → System & Updates → Darstellung, 12–22 px, wirkt sofort und wird gespeichert); gespeicherte Chats bleiben unverändert.
+- 2.12.0 (Buffy, ohne Versionserhöhung): „Was ist neu?“ beim Update – die schon vorhandenen Notizen aus `release/version.json`/GitHub-Release werden im Update-Hinweis gezeigt (3 Zeilen sichtbar, aufklappbar, Text escaped). Nur Anzeige, kein neuer Netzwerkcode.
 - 2.12.0 (Freebuff + Claude): Chat-Export (Speichern-Knopf in der Seitenleiste); Mail-TLS setzt servername nicht bei IP-Adressen (Tests auf neuerem Node).
 - 2.11.1 (Buffy, Zweig freebuff-arbeit, ohne Versionserhöhung): Chat-Export – Chat aus der Seitenleiste als Textdatei speichern (Speichern-Dialog, nur der gewählte Pfad). Neu: `src/chatExport.js`, `test/teil10.test.js`.
 - 2.11.1 (Claude): Weckwort toleranter + Diagnose-Anzeige "Zuletzt gehört".

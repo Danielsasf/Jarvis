@@ -97,7 +97,7 @@ function normalize(c) {
   c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
-    race: true, hedgeSec: 5, speedOrder: true, ...(c.settings || {}) };
+    race: true, hedgeSec: 5, speedOrder: true, fontSize: 14.5, ...(c.settings || {}) };
   // alte Standard-Persönlichkeit aus V1 automatisch auf die neue (ohne Emojis) heben
   if (c.settings.systemPrompt.startsWith(OLD_DEFAULT_START)) c.settings.systemPrompt = DEFAULT_SYSTEM;
   return c;
@@ -255,6 +255,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (typeof patch.speedOrder === 'boolean') s.speedOrder = patch.speedOrder;
   if (Number.isFinite(patch.hedgeSec)) s.hedgeSec = Math.min(30, Math.max(0, Math.round(patch.hedgeSec)));
   if (Number.isFinite(patch.timeoutSec)) s.timeoutSec = Math.min(300, Math.max(10, patch.timeoutSec));
+  if (Number.isFinite(patch.fontSize)) s.fontSize = Math.min(22, Math.max(12, Math.round(patch.fontSize * 2) / 2));
   if (patch.resetPrompt) s.systemPrompt = DEFAULT_SYSTEM;
   saveCfg();
   return publicState();
