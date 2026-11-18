@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.12.0 (Buffy, ohne Versionserhöhung): Neues Aussehen – Kommandobrücken-Look mit Tiefe (Verläufe, Leisten, Raster, Lauflicht), überarbeitete Seitenleiste, Messfelder, Chatkarten, Eingabe und Einstellungen (sticky Kopfzeile, Karten-Zeilen, Nav-Markierung). Nur `src/renderer/style.css`, keine Funktion und keine Klassen-Namen geändert.
 - 2.12.0 (Buffy, ohne Versionserhöhung): Schriftgröße im Chat einstellbar (Einstellungen → System & Updates → Darstellung, 12–22 px, wirkt sofort und wird gespeichert); gespeicherte Chats bleiben unverändert.
 - 2.12.0 (Buffy, ohne Versionserhöhung): „Was ist neu?“ beim Update – die schon vorhandenen Notizen aus `release/version.json`/GitHub-Release werden im Update-Hinweis gezeigt (3 Zeilen sichtbar, aufklappbar, Text escaped). Nur Anzeige, kein neuer Netzwerkcode.
 - 2.12.0 (Freebuff + Claude): Chat-Export (Speichern-Knopf in der Seitenleiste); Mail-TLS setzt servername nicht bei IP-Adressen (Tests auf neuerem Node).
