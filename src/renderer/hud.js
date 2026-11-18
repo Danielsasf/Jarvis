@@ -200,7 +200,7 @@
       rim.addColorStop(0, c(0)); rim.addColorStop(0.85, c(0.55)); rim.addColorStop(1, c(0));
       ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(x, y, cr * 1.04, 0, TAU); ctx.fill();
       const sp = ctx.createRadialGradient(x - cr * 0.38, y - cr * 0.42, 0, x - cr * 0.38, y - cr * 0.42, cr * 0.34);
-      sp.addColorStop(0, 'rgba(255,255,255,.5)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
+      sp.addColorStop(0, 'rgba(190,245,255,.3)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = sp; ctx.beginPath(); ctx.arc(x - cr * 0.38, y - cr * 0.42, cr * 0.34, 0, TAU); ctx.fill();
       ctx.restore();
       // Kristall im Inneren (Ikosaeder), dreht gegenläufig auf zwei Achsen
@@ -208,10 +208,9 @@
       const V = [[-1, ph, 0], [1, ph, 0], [-1, -ph, 0], [1, -ph, 0], [0, -1, ph], [0, 1, ph], [0, -1, -ph], [0, 1, -ph], [ph, 0, -1], [ph, 0, 1], [-ph, 0, -1], [-ph, 0, 1]].map((v) => [v[0] / nl, v[1] / nl, v[2] / nl]);
       const E = []; for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.abs(Math.hypot(V[i][0] - V[j][0], V[i][1] - V[j][1], V[i][2] - V[j][2]) - 2 / nl) < 0.01) E.push([i, j]);
       const pv = V.map((v) => P(rot(v[0], v[1], v[2], -t * 1.1, t * 0.7), cr * 0.62));
-      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,.9)'; ctx.shadowBlur = 6;
-      for (const [i, j] of E) seg3(pv[i], pv[j], 1.5, 1, '245,254,255');
+      ctx.save(); ctx.shadowColor = 'rgba(80,220,255,.9)'; ctx.shadowBlur = 6;
+      for (const [i, j] of E) seg3(pv[i], pv[j], 1.5, 1, '4,44,80');
       ctx.restore();
-      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,1)'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, cr * (0.13 + level * 0.1), 0, TAU); ctx.fill(); ctx.restore();
       drawOrbits(true);
       if (!small) {
         ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.5);

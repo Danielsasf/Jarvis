@@ -1,4 +1,4 @@
 {
-  "version": "2.23.0",
-  "notes": "Look: Zahlen am Kern entfernt (Gradzahlen, Messwerte, Hex-Ring). Kern größer und plastischer: Randlicht, Glanzpunkt, kräftigeres Gitter."
+  "version": "2.23.1",
+  "notes": "Look: weißer Punkt in der Mitte entfernt, Kristall innen jetzt dunkelblau und gut sichtbar."
 }
