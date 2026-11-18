@@ -7,7 +7,7 @@
     .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, '$1<i>$2</i>');
 
   // Gedächtnis-Markierungen nie anzeigen (auch nicht halb geschrieben)
-  const stripMemory = (t) => String(t).replace(/<(merken|vergessen)>[\s\S]*?<\/\1>/gi, '').replace(/<(merken|vergessen)>[\s\S]*$/i, '').replace(/<(m(e(r(k(en?)?)?)?)?|v(e(r(g(e(s(s(en?)?)?)?)?)?)?)?)?$/i, '');
+  const stripMemory = (t) => String(t).replace(/<(merken|vergessen|aktion)>[\s\S]*?<\/\1>/gi, '').replace(/<(merken|vergessen|aktion)>[\s\S]*$/i, '').replace(/<(m(e(r(k(en?)?)?)?)?|v(e(r(g(e(s(s(en?)?)?)?)?)?)?)?|a(k(t(i(on?)?)?)?)?)?$/i, '');
 
   const num = (v) => { const n = Number(String(v).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
   const fmt = (n) => n.toLocaleString('de-DE', { maximumFractionDigits: 2 });

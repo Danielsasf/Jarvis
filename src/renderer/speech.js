@@ -5,7 +5,7 @@
 
   function clean(text) {
     return text
-      .replace(/<(merken|vergessen)>[\s\S]*?<\/\1>/gi, '')
+      .replace(/<(merken|vergessen|aktion)>[\s\S]*?<\/\1>/gi, '')
       .replace(/^\s*\|.*$/gm, '')
       .replace(EMOJI, '')
       .replace(EMOTICON, '$1')
@@ -49,9 +49,9 @@
           if (e === -1) { if (final) this.buf = ''; return; }
           this.buf = this.buf.slice(e + 3); this.inCode = false; continue;
         }
-        this.buf = this.buf.replace(/<(merken|vergessen)>[\s\S]*?<\/\1>/gi, '');
+        this.buf = this.buf.replace(/<(merken|vergessen|aktion)>[\s\S]*?<\/\1>/gi, '');
         // offene Gedächtnis-Markierung: warten bis sie zu ist (wird nicht vorgelesen)
-        const open = this.buf.search(/<(merken|vergessen)>(?![\s\S]*<\/(merken|vergessen)>)/i);
+        const open = this.buf.search(/<(merken|vergessen|aktion)>(?![\s\S]*<\/(merken|vergessen|aktion)>)/i);
         const f = this.buf.indexOf('```');
         let seg = f === -1 ? this.buf : this.buf.slice(0, f);
         if (open !== -1 && (f === -1 || open < f)) { seg = this.buf.slice(0, open); if (final) this.buf = seg; }

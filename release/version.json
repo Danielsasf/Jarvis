@@ -1,4 +1,4 @@
 {
-  "version": "3.2.0",
-  "notes": "Internet-Suche bei aktuellen Fragen (DuckDuckGo, kostenlos, Quellen werden genannt). Schalter in den Einstellungen."
+  "version": "3.3.0",
+  "notes": "Computer-Steuerung: Programme öffnen, Ordner zeigen, Dateien suchen, Webseiten, Medien. Jede Fähigkeit einzeln in den Einstellungen, standardmäßig aus. Löschen und Ändern gibt es nicht."
 }

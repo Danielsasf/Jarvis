@@ -16,6 +16,8 @@ const speed = require('./speed');
 const healthLib = require('./health');
 const historyLib = require('./history');
 const webLib = require('./websearch');
+const computerLib = require('./computer');
+const { spawn } = require('child_process');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
 const mailLib = require('./mail');
@@ -110,6 +112,7 @@ function normalize(c) {
   c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
   c.weather = { city: '', name: '', lat: null, lon: null, ...(c.weather || {}) };
   c.news = { enabled: true, ...(c.news || {}) };
+  c.computer = computerLib.normalize(c.computer);
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   const oldS = c.settings || {};
   const hadSettings = Object.keys(oldS).length > 0;
@@ -154,6 +157,7 @@ function publicState() {
     version: CODE_VERSION,
     order: cfg.order,
     news: { enabled: cfg.news.enabled !== false },
+    computer: computerLib.publicView(cfg.computer),
     packs: packs.map((p) => ({ id: p.id, name: p.name, befehl: p.befehl, beschreibung: p.beschreibung, symbol: p.symbol,
       beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), locked: !!p.locked, instructions: p.locked ? '' : p.instructions })),
     memory: memory.list(),
@@ -269,6 +273,35 @@ ipcMain.handle('provider:update', (_e, id, patch) => {
   return publicState();
 });
 
+ipcMain.handle('computer:set', (_e, patch = {}) => {
+  const c = cfg.computer;
+  if (typeof patch.enabled === 'boolean') c.enabled = patch.enabled;
+  if (typeof patch.all === 'boolean') computerLib.setAll(c, patch.all);
+  const set = (group, id, on) => { if (typeof on === 'boolean' && group && Object.prototype.hasOwnProperty.call(group, id)) group[id] = on; };
+  if (patch.cap) set(c.caps, String(patch.cap.id), patch.cap.on);
+  if (patch.app) set(c.apps, String(patch.app.id), patch.app.on);
+  if (patch.folder) set(c.folders, String(patch.folder.id), patch.folder.on);
+  if (patch.custom && typeof patch.custom.on === 'boolean') { const a = c.customApps.find((x) => x.id === String(patch.custom.id)); if (a) a.on = patch.custom.on; }
+  saveCfg();
+  log(`Computer-Steuerung geändert: ${JSON.stringify(Object.keys(patch))}`);
+  return publicState();
+});
+ipcMain.handle('computer:addApp', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Programm für Jarvis erlauben', properties: ['openFile'], filters: [{ name: 'Programme', extensions: ['exe', 'lnk', 'bat'] }] });
+  if (r.canceled || !r.filePaths[0]) return publicState();
+  const file = r.filePaths[0];
+  const name = path.basename(file).replace(/\.(exe|lnk|bat)$/i, '').slice(0, 40);
+  if (cfg.computer.customApps.length >= 30) throw new Error('Es sind höchstens 30 eigene Programme möglich.');
+  cfg.computer.customApps.push({ id: 'c' + Date.now().toString(36), name, path: file, on: false });
+  saveCfg();
+  return publicState();
+});
+ipcMain.handle('computer:removeApp', (_e, id) => {
+  cfg.computer.customApps = cfg.computer.customApps.filter((a) => a.id !== String(id));
+  saveCfg();
+  return publicState();
+});
+
 ipcMain.handle('provider:unpause', (_e, id) => {
   if (cfg.accounts[id]) { healthLib.clear(cfg.accounts[id]); saveCfg(); }
   return publicState();
@@ -328,13 +361,14 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     onStatus({ phase: 'pack', pack: invoked.name });
   }
   let system = buildSystem(invoked);
+  let tainted = false; // Inhalte von außen (Web, Mail, Kalender) im Prompt: dann führt Jarvis keine Computer-Aktionen aus
   // Aktuelle Fragen: erst im Internet suchen (kostenlos), die Treffer mit Quellen gehen an die KI
-  if (cfg.settings.webSearch !== false && last?.role === 'user' && webLib.needsWeb(last.content)) {
+  if (cfg.settings.webSearch !== false && last?.role === 'user' && webLib.needsWeb(last.content) && !(cfg.computer.enabled && computerLib.looksLikeCommand(last.content))) {
     onStatus({ phase: 'web' });
     try {
       const found = await webLib.search(last.content, fetch);
       const block = webLib.promptBlock(found);
-      if (block) system += '\n\n' + block;
+      if (block) { system += '\n\n' + block; tainted = true; }
       log(`Websuche „${found.query}“: ${found.items.length} Treffer`);
     } catch (err) {
       log(`Websuche fehlgeschlagen: ${String(err.message).slice(0, 120)}`);
@@ -349,6 +383,7 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     try {
       const evs = gc ? await gc.listEvents(w.from, w.to) : await calLib.fetchEvents(decrypt(cfg.cal.url), w.from, w.to);
       system += '\n\n' + calLib.promptBlock(evs, { label: w.label, canWrite: !!gc && canPropose });
+      tainted = true;
       log(`Kalender: ${evs.length} Termine gelesen`);
     } catch (err) {
       system += '\n\n' + calLib.promptBlock([], { error: String(err.message).slice(0, 200), label: w.label });
@@ -363,12 +398,15 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     try {
       const mails = await mailLib.fetchRecent(mailCreds(), { days: cfg.mail.days, max: 12, unseenOnly });
       system += '\n\n' + mailLib.promptBlock(mails, { days: cfg.mail.days });
+      tainted = true;
       log(`E-Mail: ${mails.length} Mails gelesen`);
     } catch (err) {
       system += '\n\n' + mailLib.promptBlock([], { error: String(err.message).slice(0, 200), days: cfg.mail.days });
       log(`E-Mail-Abruf fehlgeschlagen: ${String(err.message).slice(0, 120)}`);
     }
   }
+  const canAct = canPropose; // nur im Jarvis-Fenster am PC, nie über das Handy
+  if (canAct) { const cb = computerLib.promptBlock(cfg.computer); if (cb) system += '\n\n' + cb; }
   const t0 = Date.now();
   let firstAt = null;
 
@@ -420,13 +458,28 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
     saveCfg();
     const mem = memory.apply(result.text);
     if (mem.saved.length || mem.forgotten.length) emit('jarvis:state', publicState());
+    const ca = computerLib.extract(result.text);
+    const actions = [];
+    if (ca.actions.length || ca.rejected) {
+      if (!canAct) actions.push({ ok: false, text: 'Computer-Aktionen führe ich nur im Jarvis-Fenster am PC aus, nicht über das Handy.' });
+      else if (tainted) actions.push({ ok: false, text: 'Nicht ausgeführt: In dieser Antwort stecken Inhalte aus dem Internet, E-Mails oder dem Kalender. Sag den Befehl bitte noch einmal ohne diese Frage.' });
+      else {
+        for (const a of ca.actions) {
+          const r = await computerLib.run(cfg.computer, a, { shell, spawn, getPath: (k) => app.getPath(k), fsp: require('fs/promises') });
+          log(`Computer: ${a.typ} -> ${r.ok ? 'ok' : 'abgelehnt'} (${r.text})`);
+          actions.push(r);
+        }
+        if (ca.rejected) actions.push({ ok: false, text: 'Eine Aktion war ungültig und wurde verworfen.' });
+      }
+    }
+    result.text = ca.clean;
     const pr = gcalLib.extract(result.text);
     let proposals = [];
     if (pr.proposals.length && canPropose && getGcal()) { try { proposals = await makeProposals(pr.proposals); } catch (err) { log(`Terminvorschlag fehlgeschlagen: ${String(err.message).slice(0, 100)}`); } }
     let note = '';
     if (pr.proposals.length && !canPropose) note = '\n\n(Nichts eingetragen: Termine trage ich nur im Jarvis-Fenster am PC ein, nach deiner Bestätigung.)';
     else if (pr.rejected && !proposals.length) note = '\n\n(Ein Terminvorschlag war ungültig und wurde verworfen. Sag es bitte noch einmal genauer.)';
-    return { text: (stripTags(pr.clean).trim() + note).trim(), proposals, memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
+    return { text: (stripTags(pr.clean).trim() + note).trim(), actions, proposals, memorySaved: mem.saved, memoryForgotten: mem.forgotten, pack: invoked?.name || null, by: result.used.label, providerId: result.used.id, fallbacks: result.failures, firstMs: firstAt ? firstAt - t0 : null, totalMs: Date.now() - t0 };
   } catch (err) {
     if (abortSignal.aborted) return { stopped: true };
     for (const f of err.failures || []) { recordSpeed(f.id, f.ms, false); noteFailure(f.id, f.err); }

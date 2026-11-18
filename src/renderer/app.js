@@ -405,6 +405,10 @@ async function sendMessage(text) {
     if (isShown(run)) {
       paint(run, true);
       addMeta(run.bubble, res.text, res);
+      for (const x of res.actions || []) {
+        addStep(run.bubble, x.ok ? `Computer: ${x.text}` : `Computer: ${x.text}`, !x.ok);
+        if (x.files) addStep(run.bubble, x.files.length ? `Gefunden:\n${x.files.join('\n')}` : 'Nichts gefunden.', !x.files.length);
+      }
       for (const m of res.memorySaved || []) addStep(run.bubble, `Gemerkt: ${m.text}`);
       for (const m of res.memoryForgotten || []) addStep(run.bubble, `Vergessen: ${m.text}`);
       for (const p of res.proposals || []) addProposal(run.bubble, p);
@@ -453,8 +457,8 @@ function paint(run, final = false) {
   scrollDown();
 }
 // Steuer-Tags (<merken>, <vergessen>, <termin>) nie anzeigen oder vorlesen – auch nicht halb angekommen
-const stripLive = (s) => s.replace(/<(merken|vergessen|termin)>[\s\S]*?<\/\1>/gi, '').replace(/<(merken|vergessen|termin)>[\s\S]*$/i, '')
-  .replace(/<(?:m(?:e(?:r(?:k(?:e(?:n)?)?)?)?)?|v(?:e(?:r(?:g(?:e(?:s(?:s(?:e(?:n)?)?)?)?)?)?)?)?|t(?:e(?:r(?:m(?:i(?:n)?)?)?)?)?)?$/i, '');
+const stripLive = (s) => s.replace(/<(merken|vergessen|termin|aktion)>[\s\S]*?<\/\1>/gi, '').replace(/<(merken|vergessen|termin|aktion)>[\s\S]*$/i, '')
+  .replace(/<(?:m(?:e(?:r(?:k(?:e(?:n)?)?)?)?)?|v(?:e(?:r(?:g(?:e(?:s(?:s(?:e(?:n)?)?)?)?)?)?)?)?|t(?:e(?:r(?:m(?:i(?:n)?)?)?)?)?|a(?:k(?:t(?:i(?:o(?:n)?)?)?)?)?)?$/i, '');
 jarvis.onDelta(({ reqId, text: raw }) => {
   if (ui.netz) window.Netz?.bump(0.5);
   const run = runByReq(reqId);
@@ -700,6 +704,46 @@ $('addForm').addEventListener('click', async (e) => {
       toast(`${t.name}: ${err.message}`, 6000);
     }
   }
+});
+
+// ---------- Computer-Steuerung (Einstellungen) ----------
+function renderComputer() {
+  const c = state.computer; if (!c) return;
+  $('compMaster').checked = c.enabled;
+  const row = (title, desc, checked, attrs, cls = '') => `<div class="setting ${cls}"><div><b>${escapeHtml(title)}</b>${desc ? `<small>${escapeHtml(desc)}</small>` : ''}</div><label class="switch"><input type="checkbox" ${checked ? 'checked' : ''} ${attrs}><span></span></label></div>`;
+  let html = '';
+  for (const cap of c.caps) {
+    html += row(cap.label, cap.desc, cap.on, `data-cap="${cap.id}"`);
+    if (cap.items === 'apps') {
+      html += c.apps.map((x) => row(x.label, '', x.on, `data-app="${x.id}"`, 'sub')).join('');
+      html += c.customApps.map((x) => `<div class="setting sub"><div><b>${escapeHtml(x.name)}</b><small>${escapeHtml(x.path)}</small></div><div class="row"><button class="danger small" data-rm="${x.id}">Entfernen</button><label class="switch"><input type="checkbox" ${x.on ? 'checked' : ''} data-custom="${x.id}"><span></span></label></div></div>`).join('');
+      html += '<div class="row sub"><button class="ghost small" id="compAdd">+ Eigenes Programm hinzufügen</button></div>';
+    }
+    if (cap.items === 'folders') html += c.folders.map((x) => row(x.label, '', x.on, `data-folder="${x.id}"`, 'sub')).join('');
+  }
+  const body = $('compBody');
+  if (body.dataset.sig === JSON.stringify(c)) return;
+  body.dataset.sig = JSON.stringify(c);
+  body.innerHTML = html;
+}
+$('compMaster').onchange = async (e) => { state = await jarvis.setComputer({ enabled: e.target.checked }); renderComputer(); };
+$('compAll').onclick = async () => { if (confirm('Wirklich ALLES erlauben? Jarvis darf dann alle Fähigkeiten dieser Liste nutzen.')) { state = await jarvis.setComputer({ all: true }); renderComputer(); } };
+$('compNone').onclick = async () => { state = await jarvis.setComputer({ all: false }); renderComputer(); toast('Alles gesperrt'); };
+$('compBody').addEventListener('change', async (e) => {
+  const t = e.target, on = t.checked;
+  if (t.dataset.cap) state = await jarvis.setComputer({ cap: { id: t.dataset.cap, on } });
+  else if (t.dataset.app) state = await jarvis.setComputer({ app: { id: t.dataset.app, on } });
+  else if (t.dataset.folder) state = await jarvis.setComputer({ folder: { id: t.dataset.folder, on } });
+  else if (t.dataset.custom) state = await jarvis.setComputer({ custom: { id: t.dataset.custom, on } });
+  renderComputer();
+});
+$('compBody').addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  try {
+    if (b.id === 'compAdd') state = await jarvis.addComputerApp();
+    else if (b.dataset.rm) state = await jarvis.removeComputerApp(b.dataset.rm);
+    renderComputer();
+  } catch (err) { toast(err.message, 5000); }
 });
 
 function renderTempo() {
@@ -1049,6 +1093,7 @@ jarvis.onWake((w) => {
 });
 
 function renderAll() {
+  renderComputer();
   renderVoice();
   renderFont();
   renderWeather();

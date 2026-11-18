@@ -2,6 +2,27 @@
 // Diese Datei läuft im Fenster (window.GUIDES) und im Hauptprozess (require), darum beides.
 (function () {
   const GUIDES = {
+    computer: {
+      title: 'So steuerst du deinen Computer mit Jarvis (Anleitung)',
+      intro: 'Jarvis kann Programme öffnen, Ordner zeigen, Dateien nach Namen suchen, Webseiten öffnen und Medien steuern. Du entscheidest, was erlaubt ist. Alles ist am Anfang aus.',
+      sections: [{
+        heading: 'Einschalten',
+        steps: [
+          'Oben „Computer-Steuerung einschalten“ anklicken. Das ist der Hauptschalter.',
+          'Darunter jede Fähigkeit einzeln anklicken, die du erlauben willst. Bei „Programme öffnen“ und „Ordner zeigen“ wählst du zusätzlich jedes Programm und jeden Ordner einzeln.',
+          'Oder „Alles erlauben“ drücken. „Alles sperren“ schaltet sofort alles wieder aus.',
+          'Eigene Programme: „+ Eigenes Programm hinzufügen“, die Datei (.exe) auswählen und danach den Schalter dahinter einschalten.',
+        ],
+      }, {
+        heading: 'Benutzen',
+        steps: [
+          'Sag oder schreib z. B. „Öffne den Rechner“, „Zeig mir den Downloads-Ordner“, „Such die Datei Rechnung“ oder „Mach die Musik leiser“.',
+          'Im Chat siehst du bei „Computer:“ jedes Mal, was Jarvis getan hat oder warum nicht.',
+        ],
+      }],
+      note: 'Sicherheit: Jarvis löscht, verschiebt oder ändert nie Dateien und tippt oder klickt nicht für dich. Er führt nichts aus, wenn in der Antwort Inhalte aus dem Internet, E-Mails oder dem Kalender stecken. Über das Handy funktioniert es nicht.',
+      links: [],
+    },
     kis: {
       title: 'So fügst du eine KI hinzu (Anleitung)',
       intro: 'Eine KI brauchst du, damit Jarvis antworten kann. Viele Anbieter haben einen kostenlosen Einstieg. Du brauchst dafür einen Schlüssel (API-Key), das ist eine lange Zeichenfolge, die dich beim Anbieter ausweist.',

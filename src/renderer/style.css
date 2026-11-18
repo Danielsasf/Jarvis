@@ -670,3 +670,7 @@ body.view-netz .kurven, body.view-netz .news { display: none; }
 
 #tempoAdv.dim { opacity: .4; }
 .badge.pause { background: rgba(255, 190, 90, .16); color: #ffcf7a; border-color: rgba(255, 190, 90, .4); }
+.setting.sub { margin-left: 22px; padding: 8px 12px; opacity: .92; }
+.setting.sub b { font-weight: 500; font-size: .95em; }
+.row.sub { margin-left: 22px; }
+.step-files { white-space: pre-wrap; }

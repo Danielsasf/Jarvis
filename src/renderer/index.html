@@ -131,6 +131,7 @@
         <button data-tab="mail"><span>08</span>E-Mail</button>
         <button data-tab="kalender"><span>09</span>Kalender</button>
         <button data-tab="melden"><span>10</span>Benachrichtigungen</button>
+        <button data-tab="computer"><span>11</span>Computer</button>
       </nav>
       <div class="settings-main">
         <button class="top-btn close" id="closeSettings" title="Schließen (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -346,6 +347,17 @@
           <div class="row"><button class="primary" id="mailSave">Speichern &amp; testen</button><button class="ghost" id="mailForget">Zugang löschen</button></div>
           <p class="wake-status" id="mailStatus"></p>
           <p class="muted"><b>Hinweise:</b> web.de und GMX: in den Einstellungen unter „POP3 &amp; IMAP“ den IMAP-Zugriff erlauben (bei aktiver Zwei-Faktor-Anmeldung ein „Anwendungspasswort“ nehmen). Gmail, iCloud, Outlook: ein „App-Passwort“ erzeugen, das normale Passwort geht dort nicht. Schlägt die Anmeldung fehl, zeigt Jarvis die Meldung des Mail-Servers.</p>
+        </section>
+
+        <section data-pane="computer" class="hidden">
+          <h2>Computer-Steuerung</h2>
+          <p class="muted">Jarvis kann auf deinen Wunsch Programme öffnen, Ordner zeigen und mehr. Alles ist standardmäßig aus. Du erlaubst jede Fähigkeit einzeln, oder alles auf einmal. Löschen, Verschieben und Ändern von Dateien, Tippen und Mausklicks gibt es nicht. Es funktioniert nur im Jarvis-Fenster am PC, nie über das Handy.</p>
+          <div class="setting">
+            <div><b>Computer-Steuerung einschalten</b><small>Hauptschalter. Aus: Jarvis macht nichts am Computer, egal was unten steht.</small></div>
+            <label class="switch"><input type="checkbox" id="compMaster"><span></span></label>
+          </div>
+          <div class="row"><button class="ghost" id="compAll">Alles erlauben</button><button class="ghost" id="compNone">Alles sperren</button></div>
+          <div id="compBody"></div>
         </section>
 
         <section data-pane="handy" class="hidden">
