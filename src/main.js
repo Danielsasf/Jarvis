@@ -16,6 +16,7 @@ const mailLib = require('./mail');
 const calLib = require('./calendar');
 const gcalLib = require('./gcal');
 const notifyLib = require('./notify');
+const chatExport = require('./chatExport');
 
 const BOOT = global.JARVIS || { shellVersion: CODE_VERSION, appDir: path.join(app.getPath('userData'), 'app'), markHealthy: () => {} };
 
@@ -581,6 +582,18 @@ ipcMain.handle('remote:recheck', async () => { await remoteApply(); return publi
 ipcMain.handle('chats:all', () => chatStore.all());
 ipcMain.handle('chats:save', (_e, chat) => { chatStore.upsert(chat); return true; });
 ipcMain.handle('chats:delete', (_e, id) => { chatStore.remove(String(id)); return true; });
+ipcMain.handle('chats:export', async (_e, chat = {}) => {
+  const text = chatExport.chatToText(chat);
+  const r = await dialog.showSaveDialog(win, {
+    title: 'Chat als Textdatei speichern',
+    defaultPath: path.join(app.getPath('documents'), chatExport.suggestFileName(chat.title)),
+    filters: [{ name: 'Textdatei', extensions: ['txt'] }],
+  });
+  if (r.canceled || !r.filePath) return { saved: false };
+  fs.writeFileSync(r.filePath, text, 'utf8');
+  log(`Chat als Textdatei gespeichert (${Array.isArray(chat.messages) ? chat.messages.length : 0} Nachrichten)`);
+  return { saved: true, file: r.filePath };
+});
 
 // ---------- Pakete ----------
 ipcMain.handle('packs:toggle', (_e, id, on) => { cfg.packs ||= {}; cfg.packs[id] = !!on; saveCfg(); return publicState(); });

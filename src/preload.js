@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   getChats: () => call('chats:all'),
   saveChat: (chat) => call('chats:save', chat),
   deleteChat: (id) => call('chats:delete', id),
+  exportChat: (chat) => call('chats:export', chat),
   setNotify: (patch) => call('notify:set', patch),
   testNotify: () => call('notify:test'),
   morningNotify: () => call('notify:morning'),
