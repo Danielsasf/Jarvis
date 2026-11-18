@@ -95,11 +95,6 @@
         for (let i = 0; i < 4; i++) {
           const a = (i / 4) * TAU;
           tick(x, y, a, R * 0.3, R * 0.44, 1, 0.55);
-          // kleine Dreiecke außen
-          const ax = x + Math.cos(a) * R * 0.6; const ay = y + Math.sin(a) * R * 0.6;
-          ctx.save(); ctx.translate(ax, ay); ctx.rotate(a + Math.PI / 2);
-          ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(0, -6); ctx.closePath(); ctx.fillStyle = c(0.85); ctx.fill();
-          ctx.restore();
         }
         // Sweep beim Nachdenken: scharfe Linie
         if (speed > 2) {
@@ -116,11 +111,6 @@
       ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill();
       ring(x, y, cr + 3, 1, 0.9);
       ring(x, y, cr + 7, 1, 0.35);
-      if (!small) {
-        ctx.font = `600 ${Math.max(8, R * 0.042)}px "Bahnschrift", "Segoe UI", sans-serif`;
-        ctx.fillStyle = c(0.9); ctx.textAlign = 'center';
-        ctx.fillText(label, x, y + R * 0.38);
-      }
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
