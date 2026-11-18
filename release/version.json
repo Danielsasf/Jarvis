@@ -1,4 +1,4 @@
 {
-  "version": "2.18.0",
-  "notes": "Neue Fokus-Ansicht: Startbildschirm nur Kern, Reaktion und KI-Zahl; Jarvis' Antwort läuft als Schrift mit. Verlauf, Eingabefeld und Seitenleiste per Knopf oben ein/aus. Verbindung, Gedächtnis, Weckwort stehen jetzt in den Einstellungen unter System."
+  "version": "2.19.0",
+  "notes": "Neue Netz-Ansicht (Knopf oben): Sternenfeld mit Graph aus Paketen, KIs, Gedächtnis und Chats. Neues Paket = neuer Punkt. Links Inspektor, Befehls-Matrix, Top-Knoten; rechts Statusring, Aktivitäts-Log, Gespräch."
 }

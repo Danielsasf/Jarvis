@@ -29,6 +29,7 @@ function toast(text, ms = 3200) {
 const MODE_LABEL = { idle: 'BEREIT', thinking: 'VERARBEITE', listening: 'HÖRE ZU', speaking: 'SPRECHE', error: 'FEHLER' };
 function setMode(mode, label) {
   hud.setMode(mode, label || MODE_LABEL[mode]);
+  window.Netz?.setMode(mode, label || MODE_LABEL[mode]);
   els.statusEl.className = `status ${mode}`;
   els.statusText.textContent = label || MODE_LABEL[mode];
 }
@@ -52,12 +53,19 @@ function updateReadouts() {
   els.updateInfo.textContent = `Installiert: Version ${state.version}`;
   els.autoUpdate.checked = state.settings.autoUpdate !== false;
 }
+// ---------- Netz-Ansicht ----------
+function renderNetz() {
+  if (!window.Netz || !state) return;
+  window.Netz.setData({ packs: state.packs || [], memory: state.memory || [], providers: state.providers || [], chats, version: state.version });
+  window.Netz.setConversation(activeChat()?.messages || []);
+}
 // ---------- Ansicht: Verlauf / Eingabe / Seitenleiste (Standard: alles zu, nur Kern + mitlaufende Schrift) ----------
 const UI_KEY = 'jarvis.ui';
-let ui = { hideChat: true, hideInput: false, side: false };
+let ui = { hideChat: true, hideInput: false, side: false, netz: false };
 try { ui = { ...ui, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') }; } catch { /* egal */ }
 function applyUi() {
   const b = document.body.classList;
+  b.toggle('view-netz', !!ui.netz); $('netzToggle').setAttribute('aria-pressed', String(!!ui.netz));
   b.toggle('hide-chat', !!ui.hideChat); b.toggle('hide-input', !!ui.hideInput); b.toggle('side-off', !ui.side);
   $('chatToggle').setAttribute('aria-pressed', String(!ui.hideChat));
   $('inputToggle').setAttribute('aria-pressed', String(!ui.hideInput));
@@ -65,6 +73,7 @@ function applyUi() {
   try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* egal */ }
   if (typeof updateWelcome === 'function' && state) updateWelcome();
   scrollDown?.(true);
+  if (ui.netz) { renderNetz(); window.Netz?.show(); }
 }
 function setUi(patch) { ui = { ...ui, ...patch }; applyUi(); }
 let liveActive = false; let liveTimer = 0;
@@ -83,6 +92,7 @@ function liveFrom(raw) {
   setLive(out);
 }
 function updateWelcome() {
+  if (ui.netz) window.Netz?.setConversation(activeChat()?.messages || []);
   const none = connectedCount() === 0;
   els.welcomeConnect.classList.toggle('hidden', !none);
   els.welcomeHint.textContent = none
@@ -102,7 +112,7 @@ const speaker = new JarvisSpeech.Speaker({
   rate: () => state?.settings?.rate || 1.1,
   onStart: () => settle(),
   onEnd: () => settle(),
-  onWord: () => hud.bump(0.55 + Math.random() * 0.35),
+  onWord: () => { hud.bump(0.55 + Math.random() * 0.35); window.Netz?.bump(0.6); },
 });
 function stopSpeaking() { speaker.stop(); settle(); }
 
@@ -362,6 +372,7 @@ async function sendMessage(text) {
   const run = { reqId, chatId: chat.id, bubble, body, text: '', raf: 0 };
   runs.set(chat.id, run);
   updateWelcome(); renderChatList(); updateSendButton();
+  window.Netz?.log(`Anfrage: ${text.slice(0, 60)}`);
   setMode('thinking');
 
   try {
@@ -382,7 +393,8 @@ async function sendMessage(text) {
       if (state.settings.speak) speaker.finish();
     } else if (chat.id !== activeId) { chat.unread = true; toast(`Antwort fertig: ${chat.title}`); }
     if (res.memorySaved?.length || res.memoryForgotten?.length) { state = await jarvis.getState(); updateReadouts(); }
-    if (res.firstMs != null) els.roSpeed.textContent = `${(res.firstMs / 1000).toFixed(2)} s`;
+    if (res.firstMs != null) { els.roSpeed.textContent = `${(res.firstMs / 1000).toFixed(2)} s`; window.Netz?.setSpeed(els.roSpeed.textContent); }
+    window.Netz?.log(`Antwort von ${String(res.by || 'KI').split(' (')[0]}${res.firstMs != null ? ` in ${(res.firstMs / 1000).toFixed(2)} s` : ''}`);
   } catch (err) {
     const partial = run.text;
     if (partial) {
@@ -425,6 +437,7 @@ function paint(run, final = false) {
 const stripLive = (s) => s.replace(/<(merken|vergessen|termin)>[\s\S]*?<\/\1>/gi, '').replace(/<(merken|vergessen|termin)>[\s\S]*$/i, '')
   .replace(/<(?:m(?:e(?:r(?:k(?:e(?:n)?)?)?)?)?|v(?:e(?:r(?:g(?:e(?:s(?:s(?:e(?:n)?)?)?)?)?)?)?)?|t(?:e(?:r(?:m(?:i(?:n)?)?)?)?)?)?$/i, '');
 jarvis.onDelta(({ reqId, text: raw }) => {
+  if (ui.netz) window.Netz?.bump(0.5);
   const run = runByReq(reqId);
   if (!run) return;
   run.raw = (run.raw || '') + raw;
@@ -441,7 +454,7 @@ jarvis.onStatus((s) => {
   if (!run) return;
   const shown = isShown(run);
   const short = (n) => String(n).split(' (')[0];
-  if (s.phase === 'streaming') els.roSpeed.textContent = `${(s.firstMs / 1000).toFixed(2)} s`;
+  if (s.phase === 'streaming') { els.roSpeed.textContent = `${(s.firstMs / 1000).toFixed(2)} s`; window.Netz?.setSpeed(els.roSpeed.textContent); }
   if (!shown) return;
   if (s.phase === 'asking') addStep(run.bubble, `Frage ${short(s.provider)} (${s.model}) …`);
   if (s.phase === 'slow') addStep(run.bubble, `Noch keine Antwort – frage zusätzlich ${short(s.provider)}`, true);
@@ -1003,6 +1016,7 @@ function renderAll() {
   renderVoice();
   renderFont();
   renderWeather();
+  renderNetz();
   renderProviders();
   renderPacks();
   renderSidePacks();
@@ -1076,6 +1090,7 @@ $('chatSearch').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e
 $('chatSearchClear').onclick = () => { $('chatSearch').value = ''; chatQuery = ''; $('chatSearchClear').classList.add('hidden'); renderChatList(); };
 window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setUi({ side: true }); $('chatSearch').focus(); $('chatSearch').select(); } });
 $('sideToggle').onclick = () => setUi({ side: !ui.side });
+$('netzToggle').onclick = () => setUi({ netz: !ui.netz });
 $('chatToggle').onclick = () => setUi({ hideChat: !ui.hideChat });
 $('inputToggle').onclick = () => { setUi({ hideInput: !ui.hideInput }); if (!ui.hideInput) els.input.focus(); };
 $('sideMemory').onclick = () => openSettings('gedaechtnis');
@@ -1093,7 +1108,8 @@ els.speakToggle.onclick = async () => {
 };
 $('savePrompt').onclick = async () => { state = await jarvis.setSettings({ systemPrompt: els.systemPrompt.value }); toast('Gespeichert'); };
 $('resetPrompt').onclick = async () => { state = await jarvis.setSettings({ resetPrompt: true }); els.systemPrompt.value = state.settings.systemPrompt; toast('Zurückgesetzt'); };
-jarvis.onLog((line) => { els.log.textContent = `${new Date().toLocaleTimeString('de-DE')} ${line}\n` + els.log.textContent.slice(0, 8000); });
+jarvis.onLog((line) => {
+  window.Netz?.log(line); els.log.textContent = `${new Date().toLocaleTimeString('de-DE')} ${line}\n` + els.log.textContent.slice(0, 8000); });
 jarvis.onState((s) => { state = s; renderAll(); });
 speechSynthesis.onvoiceschanged = () => {};
 
@@ -1105,6 +1121,7 @@ speechSynthesis.onvoiceschanged = () => {};
   chats.unshift(fresh);
   activeId = fresh.id;
   if (window.innerWidth < 860) ui.side = false;
+  window.Netz?.init({ onCommand: (cmd) => { if (ui.hideInput) setUi({ hideInput: false }); els.input.value = `${cmd} `; els.input.focus(); updateSuggest(); } });
   applyUi();
   renderAll();
   renderChatList();

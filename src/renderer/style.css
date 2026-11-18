@@ -551,3 +551,45 @@ body:not(.hide-chat) .live { display: none; }
 .statusbox dt { color: var(--muted); font-size: 12.5px; } .statusbox dd { margin: 0; font-family: var(--mono); font-size: 12.5px; color: #eaf9ff; text-align: right; }
 .statusbox .click { cursor: pointer; } .statusbox .click:hover { border-color: var(--accent); }
 @media (max-height: 760px) { body.hide-chat .core-wrap { width: 200px; height: 200px; } }
+
+/* Netz-Ansicht 2.19 */
+.netz { display: none; flex: 1; min-height: 0; grid-template-columns: 268px minmax(0, 1fr) 288px; gap: 12px; padding: 10px 14px 6px; border-top: 1px solid var(--line); }
+body.view-netz .netz { display: grid; }
+body.view-netz .stage, body.view-netz .day-strip, body.view-netz main, body.view-netz .live, body.view-netz .wx { display: none; }
+.nz-left, .nz-right { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; }
+.nz-card { border: 1px solid var(--line); background: rgba(5, 14, 22, .72); padding: 10px 12px; flex: none; }
+.nz-card h4 { margin: 0 0 8px; font-family: var(--hud); font-size: 9.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.nz-hint { margin: 0; color: var(--dim); font-size: 12px; line-height: 1.5; }
+#nzInspect h5 { margin: 0 0 2px; font-size: 15px; color: #eaf9ff; }
+#nzInspect small { color: var(--dim); font-family: var(--mono); font-size: 10.5px; }
+#nzInspect p { margin: 8px 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.nz-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.nz-chips button, .nz-use { padding: 3px 8px; font-size: 11px; border: 1px solid var(--line-3, rgba(79,227,255,.3)); background: rgba(79,227,255,.06); color: var(--muted); cursor: pointer; }
+.nz-chips button:hover, .nz-use:hover { color: var(--accent); border-color: var(--accent); }
+.nz-use { margin-top: 8px; padding: 6px 10px; color: var(--accent); }
+.nz-cmds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.nz-cmds button { text-align: left; padding: 7px 9px; border: 1px solid var(--line); background: rgba(79,227,255,.04); cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+.nz-cmds button b { font-family: var(--mono); font-size: 12.5px; color: var(--accent); font-weight: 600; } .nz-cmds button small { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.nz-cmds button:hover { border-color: var(--accent); } .nz-cmds .off { opacity: .45; }
+.nz-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.nz-top li { display: flex; align-items: center; gap: 8px; padding: 4px 4px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.nz-top li:hover { color: var(--accent); background: rgba(79,227,255,.06); }
+.nz-top i { width: 8px; height: 8px; border-radius: 50%; flex: none; } .nz-top b { margin-left: auto; font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--dim); }
+.nz-mid { position: relative; min-width: 0; min-height: 0; border: 1px solid var(--line); background: radial-gradient(ellipse at center, rgba(8, 26, 44, .7), rgba(2, 6, 12, .85)); overflow: hidden; }
+#nzCv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.nz-tools { position: absolute; z-index: 2; top: 8px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 8px; pointer-events: none; }
+.nz-tools > * { pointer-events: auto; } #nzCount { font-family: var(--mono); font-size: 10.5px; color: var(--dim); margin-left: 8px; }
+.nz-btn { width: auto; padding: 0 12px; height: 28px; font-size: 12px; border-radius: 14px; }
+.nz-foot { position: absolute; z-index: 2; bottom: 6px; left: 0; right: 0; margin: 0; text-align: center; font-size: 10.5px; letter-spacing: .08em; color: var(--dim); pointer-events: none; }
+.nz-ring { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#nzRing { width: 130px; height: 130px; display: block; }
+.nz-mode { font-family: var(--hud); font-size: 10px; letter-spacing: .28em; color: var(--accent); } .nz-sp { font-size: 11px; color: var(--dim); } .nz-sp b { color: #eaf9ff; font-family: var(--mono); font-weight: 400; }
+.nz-log { list-style: none; margin: 0; padding: 0; max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: var(--muted); }
+.nz-log li { border-left: 2px solid var(--line-3, rgba(79,227,255,.35)); padding-left: 8px; line-height: 1.4; } .nz-log time { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--dim); }
+.nz-conv { flex: 1; min-height: 120px; display: flex; flex-direction: column; } #nzConv { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+.nz-msg { padding: 7px 9px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--line); color: #dff6ff; } .nz-msg small { display: block; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); margin-bottom: 2px; }
+.nz-msg.me { align-self: flex-end; border-color: rgba(79,227,255,.35); background: rgba(79,227,255,.06); } .nz-msg.ai { background: rgba(5,14,22,.6); }
+@media (max-width: 1100px) { .netz { grid-template-columns: minmax(0, 1fr); } .nz-left, .nz-right { display: none; } }
+
+.nz-top .t-hub { background: #ebfaff; } .nz-top .t-pack { background: #ffce60; } .nz-top .t-ki { background: #60f0c8; } .nz-top .t-memory { background: #60beff; } .nz-top .t-chat { background: #ff96c8; }
+body.view-netz .status { display: none; }

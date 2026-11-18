@@ -47,6 +47,7 @@
       t += dt * speed;
 
       const [w, h] = size();
+      if (w < 24 || h < 24) { requestAnimationFrame(frame); return; }
       const x = w / 2; const y = h / 2; const R = Math.min(w, h) / 2 - 4;
       ctx.clearRect(0, 0, w, h);
       ctx.lineCap = 'butt';

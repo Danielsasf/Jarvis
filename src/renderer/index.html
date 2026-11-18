@@ -17,6 +17,7 @@
       <span class="brand-ver" id="version">v–</span>
     </div>
     <div class="top-actions">
+      <button class="top-btn" id="netzToggle" title="Netz-Ansicht ein/aus"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="6" r="1.6"/><circle cx="19" cy="7" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/><path d="M12 12L5 6M12 12l7-5M12 12l-6 6M12 12l6 6"/></svg></button>
       <button class="top-btn" id="chatToggle" title="Chat-Verlauf ein/aus"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/></svg></button>
       <button class="top-btn" id="inputToggle" title="Eingabefeld ein/aus"><svg viewBox="0 0 24 24"><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M12 4v7M9 8l3 3 3-3"/></svg></button>
       <button class="top-btn" id="speakToggle" title="Vorlesen an/aus">
@@ -71,6 +72,24 @@
     <button class="primary small" id="updateInstall">Installieren</button>
   </div>
   <div class="update-notes hidden" id="updateNotes"></div>
+
+  <section class="netz" id="netz" aria-label="Netz">
+    <aside class="nz-left">
+      <div class="nz-card"><h4>Inspektor</h4><div id="nzInspect"></div></div>
+      <div class="nz-card"><h4>Befehls-Matrix</h4><div class="nz-cmds" id="nzCmds"></div></div>
+      <div class="nz-card"><h4>Top-Knoten</h4><ul class="nz-top" id="nzTop"></ul></div>
+    </aside>
+    <div class="nz-mid">
+      <div class="nz-tools"><button id="nzFit" class="top-btn nz-btn">Einpassen</button><button id="nzLabels" class="top-btn nz-btn" aria-pressed="true">Aa</button><span id="nzCount"></span></div>
+      <canvas id="nzCv"></canvas>
+      <p class="nz-foot">Ziehen · Scrollen zum Zoomen · Klick zum Fokussieren</p>
+    </div>
+    <aside class="nz-right">
+      <div class="nz-card nz-ring"><canvas id="nzRing"></canvas><div class="nz-mode" id="nzMode">BEREIT</div><div class="nz-sp">Reaktion <b id="nzSpeed">–</b></div></div>
+      <div class="nz-card"><h4>Aktivitäts-Log</h4><ul class="nz-log" id="nzLog"></ul></div>
+      <div class="nz-card nz-conv"><h4>Gespräch</h4><div id="nzConv"></div></div>
+    </aside>
+  </section>
 
   <main id="chat">
     <section class="welcome" id="welcome">
@@ -335,6 +354,8 @@
   <div class="toast" id="toast"></div>
 
   <script src="hud.js"></script>
+  <script src="graph.js"></script>
+  <script src="netz.js"></script>
   <script src="widgets.js"></script>
   <script src="speech.js"></script>
   <script src="render.js"></script>
