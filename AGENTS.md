@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.17.0 (Claude): Kern-Look aufgewertet (nur src/renderer/hud.js): Reaktor, Druckwellen, Energiepunkte, Eck-Klammern.
 - 2.16.0 (Claude): Wetter-Widget links unter den Anzeigen (Open-Meteo, kein Schlüssel; Ort unter Einstellungen > System & Updates > Wetter). Neu: `src/weather.js`, `test/teil11.test.js`; IPC `weather:get`/`weather:set`; Cache 20 min. Nur der Ortsname geht ins Netz.
 - 2.15.0 (Claude): Leitstand-Look – Ring-Anzeigen (CPU/RAM/Zeit/Datum, `src/renderer/widgets.js`, IPC `sys:stats` nur Prozentwerte), Tagesleiste, Glow im HUD, Hintergrund-Effekte.
 - 2.14.0 (Buffy, geprüft+veröffentlicht von Claude): Schriftgröße im Chat einstellbar (Einstellungen > System & Updates > Darstellung) und neuer „Kommandobrücken“-Look für Chat, Seitenleiste, Einstellungen.
