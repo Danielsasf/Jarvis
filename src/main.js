@@ -766,6 +766,10 @@ ipcMain.handle('sys:stats', () => {
   return { cpu: Math.max(0, Math.min(100, cpu)), ram: Math.round((1 - os.freemem() / os.totalmem()) * 100) };
 });
 
+// ---------- Leitstand-Ansicht: echte Werte (CPU je Kern, RAM, Laufwerk, Laufzeit; nur Zahlen) ----------
+const sysDetail = require('./sysdetail').create(os, fs, process.platform === 'win32' ? (process.env.SystemDrive || 'C:') + '\\' : '/');
+ipcMain.handle('sys:detail', () => sysDetail());
+
 // ---------- Wetter (Open-Meteo, kostenlos, ohne Schlüssel) ----------
 let weatherCache = null;
 ipcMain.handle('weather:get', async () => {

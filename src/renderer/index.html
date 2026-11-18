@@ -18,6 +18,7 @@
     </div>
     <div class="top-actions">
       <button class="top-btn" id="netzToggle" title="Netz-Ansicht ein/aus"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="6" r="1.6"/><circle cx="19" cy="7" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/><path d="M12 12L5 6M12 12l7-5M12 12l-6 6M12 12l6 6"/></svg></button>
+      <button class="top-btn" id="mcToggle" title="Leitstand 2.0 ein/aus"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="7" rx="1"/><rect x="13" y="4" width="8" height="4" rx="1"/><rect x="13" y="10" width="8" height="10" rx="1"/><rect x="3" y="13" width="8" height="7" rx="1"/></svg></button>
       <button class="top-btn" id="chatToggle" title="Chat-Verlauf ein/aus"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/></svg></button>
       <button class="top-btn" id="inputToggle" title="Eingabefeld ein/aus"><svg viewBox="0 0 24 24"><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M12 4v7M9 8l3 3 3-3"/></svg></button>
       <button class="top-btn" id="speakToggle" title="Vorlesen an/aus">
@@ -74,6 +75,23 @@
     <button class="primary small" id="updateInstall">Installieren</button>
   </div>
   <div class="update-notes hidden" id="updateNotes"></div>
+
+  <section class="mc" id="mc" aria-label="Leitstand 2.0">
+    <div class="mc-head"><b>LEITSTAND 2.0</b><span id="mcClock">--:--:--</span></div>
+    <div class="mc-grid">
+      <div class="mc-card"><h4 id="mcCpuName">CPU</h4><div class="mc-big"><span id="mcCpu">--</span><small>%</small></div><div class="mc-cores" id="mcCores"></div></div>
+      <div class="mc-card"><h4>Speicher</h4>
+        <div class="mc-ramrow"><svg viewBox="0 0 120 120" class="mc-ring" role="img" aria-label="RAM-Auslastung"><circle cx="60" cy="60" r="50" class="mc-ring-bg"/><circle cx="60" cy="60" r="50" class="mc-ring-fg" id="mcRamRing" transform="rotate(-90 60 60)"/><text x="60" y="67" text-anchor="middle" id="mcRamPct">--</text></svg>
+        <div><div id="mcRamText" class="mc-mono">-- / -- GB</div><div class="mc-dim">RAM belegt</div></div></div>
+        <h4 class="mc-sub">Laufwerk</h4><div class="mc-bar"><i id="mcDiskBar"></i></div><div class="mc-mono"><span id="mcDiskText">--</span></div>
+      </div>
+      <div class="mc-card"><h4>Wetter</h4><div id="mcWx" class="mc-wx"></div></div>
+      <div class="mc-card"><h4>System</h4>
+        <dl class="mc-dl"><dt>Laufzeit</dt><dd id="mcUp">--</dd><dt>Netzwerk</dt><dd>--</dd><dt>Grafikkarte</dt><dd>--</dd><dt>Akku</dt><dd>--</dd><dt>Prozesse</dt><dd>--</dd></dl>
+        <p class="mc-dim mc-note">Netzwerk, Grafikkarte, Akku und Prozesse lassen sich ohne Zusatzprogramm nicht messen und bleiben auf „--“.</p>
+      </div>
+    </div>
+  </section>
 
   <section class="netz" id="netz" aria-label="Netz">
     <aside class="nz-left">
@@ -395,6 +413,7 @@
   <script src="hud.js"></script>
   <script src="graph.js"></script>
   <script src="netz.js"></script>
+  <script src="mc.js"></script>
   <script src="widgets.js"></script>
   <script src="speech.js"></script>
   <script src="render.js"></script>

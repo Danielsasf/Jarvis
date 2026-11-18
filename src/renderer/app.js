@@ -61,11 +61,12 @@ function renderNetz() {
 }
 // ---------- Ansicht: Verlauf / Eingabe / Seitenleiste (Standard: alles zu, nur Kern + mitlaufende Schrift) ----------
 const UI_KEY = 'jarvis.ui';
-let ui = { hideChat: true, hideInput: false, side: false, netz: false, quick: true };
+let ui = { hideChat: true, hideInput: false, side: false, netz: false, mc: false, quick: true };
 try { ui = { ...ui, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') }; } catch { /* egal */ }
 function applyUi() {
   const b = document.body.classList;
   b.toggle('view-netz', !!ui.netz); $('netzToggle').setAttribute('aria-pressed', String(!!ui.netz));
+  b.toggle('view-mc', !!ui.mc); $('mcToggle').setAttribute('aria-pressed', String(!!ui.mc));
   if (typeof renderQuick === 'function' && state) renderQuick();
   b.toggle('hide-chat', !!ui.hideChat); b.toggle('hide-input', !!ui.hideInput); b.toggle('side-off', !ui.side);
   $('chatToggle').setAttribute('aria-pressed', String(!ui.hideChat));
@@ -1201,7 +1202,8 @@ $('chatSearch').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e
 $('chatSearchClear').onclick = () => { $('chatSearch').value = ''; chatQuery = ''; $('chatSearchClear').classList.add('hidden'); renderChatList(); };
 window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setUi({ side: true }); $('chatSearch').focus(); $('chatSearch').select(); } });
 $('sideToggle').onclick = () => setUi({ side: !ui.side });
-$('netzToggle').onclick = () => setUi({ netz: !ui.netz });
+$('netzToggle').onclick = () => setUi({ netz: !ui.netz, mc: false });
+$('mcToggle').onclick = () => setUi({ mc: !ui.mc, netz: false });
 $('chatToggle').onclick = () => setUi({ hideChat: !ui.hideChat });
 $('inputToggle').onclick = () => { setUi({ hideInput: !ui.hideInput }); if (!ui.hideInput) els.input.focus(); };
 $('sideMemory').onclick = () => openSettings('gedaechtnis');
