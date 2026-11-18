@@ -539,8 +539,14 @@ body.packs-off .side-packs { display: none; }
 
 /* ---------- schmale Fenster ---------- */
 @media (max-width: 1040px) {
-  .gauges { display: none; }
-  .stage { grid-template-columns: 1fr; justify-items: center; padding-top: 6px; }
+  .stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 14px; padding-top: 8px; }
+  .core-wrap { order: 1; }
+  .gauges { order: 2; width: 100%; display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: stretch; gap: 8px; text-align: left; }
+  .gauges .gauge { flex: 1 1 150px; width: auto; max-width: 220px; padding: 7px 11px 8px; text-align: left;
+    border-left: 2px solid var(--accent); border-right: 0; }
+  .gauges.left .gauge { border-right: 0; }
+  .gauges .gauge::after { display: none; }
+  .gauge dd { font-size: 13.5px; }
 }
 @media (max-width: 860px) {
   .stage { padding-top: 6px; }

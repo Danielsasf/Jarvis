@@ -287,6 +287,7 @@ function renderChatList() {
       if (e.target.closest('.x')) { if (!c.messages.length || confirm(`Chat „${c.title}“ löschen?`)) deleteChat(c.id); return; }
       if (e.target.tagName === 'INPUT') return;
       switchChat(c.id);
+      if (window.innerWidth < 861) document.body.classList.add('side-off');
     });
     row.addEventListener('dblclick', (e) => {
       if (e.target.closest('.x') || e.target.closest('.save') || !c.messages.length) return;
@@ -1033,7 +1034,16 @@ $('chatSearch').addEventListener('input', (e) => { chatQuery = e.target.value; $
 $('chatSearch').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); $('chatSearchClear').click(); } });
 $('chatSearchClear').onclick = () => { $('chatSearch').value = ''; chatQuery = ''; $('chatSearchClear').classList.add('hidden'); renderChatList(); };
 window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.body.classList.remove('side-off'); $('chatSearch').focus(); $('chatSearch').select(); } });
-$('sideToggle').onclick = () => document.body.classList.toggle('side-off');
+// Schmale Fenster: Seitenleiste ist eine Schublade und soll den Chat nicht verdecken.
+const sideAuto = { hidden: false };
+const syncSideDrawer = () => {
+  if (window.innerWidth < 861) {
+    if (!document.body.classList.contains('side-off')) { document.body.classList.add('side-off'); sideAuto.hidden = true; }
+  } else if (sideAuto.hidden) { document.body.classList.remove('side-off'); sideAuto.hidden = false; }
+};
+window.addEventListener('resize', syncSideDrawer);
+syncSideDrawer();
+$('sideToggle').onclick = () => { sideAuto.hidden = false; document.body.classList.toggle('side-off'); };
 $('sideMemory').onclick = () => openSettings('gedaechtnis');
 $('sideSettings').onclick = () => openSettings();
 $('openSettings').onclick = openSettings;
