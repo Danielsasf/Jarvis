@@ -1135,3 +1135,21 @@ speechSynthesis.onvoiceschanged = () => {};
   if (connectedCount() > before) toast('Lokale KI auf deinem PC gefunden und verbunden ✓');
   if (connectedCount() === 0) setTimeout(openSettings, 600);
 })();
+
+// ---------- Anleitungen in den Einstellungen (aufklappbar) ----------
+function renderGuides() {
+  const G = window.GUIDES; if (!G) return;
+  for (const [pane, g] of Object.entries(G)) {
+    const sec = document.querySelector(`[data-pane="${pane}"]`);
+    if (!sec || sec.querySelector('.guide')) continue;
+    const d = document.createElement('details'); d.className = 'guide';
+    const secs = g.sections.map((sx) => `<h4>${escapeHtml(sx.heading)}</h4><ol class="steps-list">${sx.steps.map((st) => `<li>${escapeHtml(st)}</li>`).join('')}</ol>`).join('');
+    const links = g.links.length ? `<div class="guide-links">${g.links.map((l) => `<button class="link guide-link" data-url="${escapeHtml(l.url)}">${escapeHtml(l.label)} ↗</button>`).join('')}</div>` : '';
+    d.innerHTML = `<summary>${escapeHtml(g.title)}</summary><div class="guide-body">${g.intro ? `<p class="muted">${escapeHtml(g.intro)}</p>` : ''}${secs}${links}${g.note ? `<p class="muted guide-note">${escapeHtml(g.note)}</p>` : ''}</div>`;
+    const h2 = sec.querySelector('h2'); if (h2) h2.after(d); else sec.prepend(d);
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest?.('.guide-link'); if (b) jarvis.openExternal(b.dataset.url);
+  });
+}
+renderGuides();

@@ -628,3 +628,15 @@ body.view-netz .status { display: none; }
 @keyframes scan2 { from { transform: translateY(-160px); } to { transform: translateY(110vh); } }
 @keyframes edge { 0%, 100% { border-color: var(--line); } 50% { border-color: rgba(79, 227, 255, .5); box-shadow: 0 0 12px rgba(79, 227, 255, .12); } }
 @keyframes edge-glow { 0%, 100% { box-shadow: 0 0 8px rgba(79, 227, 255, .5); } 50% { box-shadow: 0 0 20px rgba(79, 227, 255, .95); } }
+
+/* Anleitungen in den Einstellungen */
+.guide { margin: 0 0 18px; border: 1px solid var(--line); border-radius: 10px; background: rgba(72,220,255,.04); }
+.guide > summary { cursor: pointer; padding: 11px 14px; font-weight: 600; color: var(--text, #e8f6ff); list-style: none; }
+.guide > summary::-webkit-details-marker { display: none; }
+.guide > summary::before { content: '▸ '; color: var(--accent, #48dcff); }
+.guide[open] > summary::before { content: '▾ '; }
+.guide-body { padding: 0 16px 14px; }
+.guide-body h4 { margin: 14px 0 6px; font-size: 13px; letter-spacing: .04em; color: var(--accent, #48dcff); font-weight: 600; }
+.guide-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.guide-link { text-align: left; }
+.guide-note { margin-top: 12px; }

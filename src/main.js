@@ -6,6 +6,8 @@ const { PROVIDERS, getProvider, listModels, chatStream, transcribe, pickDefaultM
 const { CODE_VERSION, UPDATE_REPO } = require('./version');
 const updater = require('./updater');
 const packsLib = require('./packs');
+const GUIDES = require('./renderer/guides.js');
+const GUIDE_URLS = new Set(Object.values(GUIDES).flatMap((g) => g.links.map((l) => l.url)));
 const { Memory, stripTags } = require('./memory');
 const { WakeWord } = require('./wake');
 const accountsLib = require('./accounts');
@@ -413,7 +415,7 @@ ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
 });
 
 ipcMain.handle('open:external', (_e, url) => {
-  if (PROVIDERS.some((p) => p.keyUrl === url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
+  if (PROVIDERS.some((p) => p.keyUrl === url) || GUIDE_URLS.has(url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
 });
 
 // ---------- E-Mail (nur lesen) ----------
