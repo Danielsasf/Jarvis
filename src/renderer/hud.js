@@ -7,6 +7,59 @@
   const SPEED = { idle: 1, thinking: 3.4, listening: 1.5, speaking: 1.8, error: 0.5 };
   const TAU = Math.PI * 2;
 
+  // ---- Erde: grobe Kontinente (Länge, Breite) -> Landmaske, pro Bild als Kugel gerendert ----
+  const LAND = [
+    [[-168,65],[-156,71],[-141,70],[-128,70],[-115,68],[-95,72],[-85,70],[-80,63],[-92,57],[-82,52],[-78,58],[-68,60],[-62,55],[-56,52],[-66,45],[-70,42],[-76,38],[-81,31],[-80,25],[-84,30],[-90,29],[-97,27],[-97,21],[-90,21],[-87,21],[-88,16],[-83,10],[-78,8],[-85,11],[-92,15],[-105,20],[-110,24],[-114,31],[-117,32],[-120,34],[-124,40],[-124,48],[-130,55],[-140,60],[-152,59],[-165,60]],
+    [[-73,78],[-60,82],[-30,83],[-20,78],[-22,70],[-40,62],[-48,61],[-55,68],[-70,70]],
+    [[-80,8],[-72,12],[-62,10],[-52,5],[-50,0],[-35,-6],[-39,-15],[-48,-26],[-58,-35],[-65,-42],[-68,-52],[-72,-53],[-74,-44],[-72,-30],[-70,-18],[-76,-14],[-81,-5],[-80,2]],
+    [[-10,36],[-9,43],[-2,44],[-5,48],[2,51],[8,54],[10,58],[5,62],[14,67],[25,71],[40,68],[60,70],[80,73],[105,77],[130,72],[160,70],[180,68],[180,65],[170,60],[160,55],[156,51],[142,52],[135,43],[128,38],[126,34],[121,31],[120,24],[110,20],[108,14],[105,9],[100,13],[98,8],[103,1],[98,16],[92,21],[86,20],[80,15],[77,8],[72,20],[67,25],[60,25],[57,25],[56,27],[50,30],[48,29],[51,25],[56,24],[59,22],[52,16],[44,12],[39,20],[35,28],[34,31],[36,36],[30,36],[27,37],[26,40],[28,41],[22,40],[19,42],[13,45],[18,40],[15,38],[12,42],[9,44],[3,43],[0,39],[-6,36]],
+    [[-17,21],[-10,30],[-6,36],[10,37],[11,33],[20,31],[32,31],[34,28],[38,20],[43,12],[51,12],[48,5],[40,-3],[40,-15],[35,-24],[32,-29],[27,-34],[19,-34],[14,-24],[12,-12],[9,-1],[9,4],[5,5],[-5,5],[-13,8],[-17,14]],
+    [[114,-22],[122,-18],[130,-12],[137,-12],[142,-11],[146,-19],[153,-26],[150,-37],[141,-38],[135,-34],[130,-32],[115,-34],[113,-26]],
+    [[-5,50],[1,51],[0,54],[-3,58],[-6,56]], [[130,31],[135,34],[140,36],[142,42],[140,41],[135,35]],
+    [[44,-25],[49,-15],[50,-13],[47,-25]], [[109,1],[117,7],[119,1],[115,-4],[110,-3]], [[95,5],[106,-6],[104,-5],[98,2]],
+    [[166,-46],[174,-41],[178,-38],[172,-41],[168,-47]], [[-180,-72],[180,-72],[180,-90],[-180,-90]],
+  ];
+  const MW = 360; const MH = 180; let mask = null;
+  function buildMask() {
+    const cv = document.createElement('canvas'); cv.width = MW; cv.height = MH; const g = cv.getContext('2d');
+    g.fillStyle = '#fff';
+    for (const poly of LAND) { g.beginPath(); poly.forEach(([lo, la], i) => { const px = lo + 180; const py = 90 - la; if (i) g.lineTo(px, py); else g.moveTo(px, py); }); g.closePath(); g.fill(); }
+    const d = g.getImageData(0, 0, MW, MH).data; mask = new Uint8Array(MW * MH);
+    for (let i = 0; i < mask.length; i++) mask[i] = d[i * 4 + 3] > 100 ? 1 : 0;
+  }
+  const earthCv = document.createElement('canvas'); let earthCtx = null;
+  // Rendert die Erde als Bild mit Beleuchtung; spin = Drehwinkel, tilt = Achsneigung
+  function earthImage(S, spin, tilt, tint, t) {
+    if (!mask) buildMask();
+    if (earthCv.width !== S) { earthCv.width = S; earthCv.height = S; earthCtx = earthCv.getContext('2d'); }
+    const img = earthCtx.createImageData(S, S); const D = img.data;
+    const ct = Math.cos(tilt); const st = Math.sin(tilt); const L = [-0.5, -0.42, 0.76]; const ln = Math.hypot(...L);
+    for (let j = 0; j < S; j++) {
+      const py = (j + 0.5) / S * 2 - 1;
+      for (let i = 0; i < S; i++) {
+        const px = (i + 0.5) / S * 2 - 1; const r2 = px * px + py * py; const o = (j * S + i) * 4;
+        if (r2 > 1) { D[o + 3] = 0; continue; }
+        const pz = Math.sqrt(1 - r2);
+        const y = py * ct + pz * st; const z = -py * st + pz * ct;
+        let lon = Math.atan2(px, z) - spin; lon = ((lon + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        const lat = Math.asin(Math.max(-1, Math.min(1, y)));
+        const mx = Math.min(MW - 1, Math.max(0, Math.floor((lon / Math.PI * 0.5 + 0.5) * MW)));
+        const my = Math.min(MH - 1, Math.max(0, Math.floor((0.5 - lat / Math.PI) * MH)));
+        const land = mask[my * MW + mx];
+        let R_; let G_; let B_;
+        if (land) { if (Math.abs(lat) > 1.27) { R_ = 225; G_ = 240; B_ = 250; } else { const dry = Math.abs(lat) < 0.5 ? 1 : 0; R_ = 70 + dry * 70; G_ = 165 + dry * 10; B_ = 95; } }
+        else { R_ = 12; G_ = 78; B_ = 160; }
+        // Wolken: einfache Wellenmuster, die langsam wandern
+        const cl = Math.sin(lon * 4 + t * 0.15 + Math.sin(lat * 5) * 2) * Math.sin(lat * 7 - lon * 2 + t * 0.1);
+        if (cl > 0.55) { const k = Math.min(1, (cl - 0.55) * 3) * 0.55; R_ += (255 - R_) * k; G_ += (255 - G_) * k; B_ += (255 - B_) * k; }
+        const lam = (px * L[0] + py * L[1] + pz * L[2]) / ln; const lit = Math.max(0.16, Math.min(1.1, 0.3 + 0.85 * lam));
+        D[o] = Math.min(255, R_ * lit * 0.85 + tint[0] * 0.15 * lit); D[o + 1] = Math.min(255, G_ * lit * 0.85 + tint[1] * 0.15 * lit); D[o + 2] = Math.min(255, B_ * lit * 0.85 + tint[2] * 0.15 * lit); D[o + 3] = 255;
+      }
+    }
+    earthCtx.putImageData(img, 0, 0);
+    return earthCv;
+  }
+
   function create(canvas) {
     const ctx = canvas.getContext('2d');
     let mode = 'idle';
@@ -174,24 +227,24 @@
         });
       };
       drawOrbits(false);
-      // Kugel: Leuchtkörper + Gitter
-      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.14;
-      const g = ctx.createRadialGradient(x - cr * 0.3, y - cr * 0.35, cr * 0.05, x, y, cr);
-      g.addColorStop(0, 'rgba(235,252,255,.95)'); g.addColorStop(0.35, c(0.75)); g.addColorStop(0.8, c(0.3)); g.addColorStop(1, c(0.12));
-      ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-      const meridians = small ? 6 : 14; const parallels = small ? 4 : 9;
+      // Kugel: die Erde, dreht sich; darüber ein feines Gitter
+      const S = Math.max(48, Math.min(190, Math.round(cr * 2)));
+      ctx.save(); ctx.shadowColor = c(0.95); ctx.shadowBlur = R * 0.12;
+      ctx.imageSmoothingEnabled = true; ctx.drawImage(earthImage(S, t * 0.35, 0.41, col, t), x - cr, y - cr, cr * 2, cr * 2);
+      ctx.restore();
+      const meridians = small ? 0 : 12; const parallels = small ? 0 : 8;
       for (let m = 0; m < meridians; m++) {
         const lon = (m / meridians) * Math.PI; let prev = null;
         for (let i = 0; i <= 48; i++) {
           const a = (i / 48) * TAU; const v = rot(Math.cos(a) * Math.cos(lon), Math.sin(a), Math.cos(a) * Math.sin(lon), spinY, tiltX);
-          const pt = P(v, cr); if (prev) seg3(prev, pt, 0.9, 0.85, '4,28,44'); prev = pt;
+          const pt = P(v, cr); if (prev) seg3(prev, pt, 0.8, 0.3, '170,235,255'); prev = pt;
         }
       }
       for (let l = 1; l <= parallels; l++) {
         const lat = (l / (parallels + 1)) * Math.PI - Math.PI / 2; const rr = Math.cos(lat); let prev = null;
         for (let i = 0; i <= 48; i++) {
           const a = (i / 48) * TAU; const v = rot(Math.cos(a) * rr, Math.sin(lat), Math.sin(a) * rr, spinY, tiltX);
-          const pt = P(v, cr); if (prev) seg3(prev, pt, 0.9, 0.85, '4,28,44'); prev = pt;
+          const pt = P(v, cr); if (prev) seg3(prev, pt, 0.8, 0.3, '170,235,255'); prev = pt;
         }
       }
       // Randlicht (Atmosphäre) und Glanzpunkt für mehr Tiefe
@@ -202,14 +255,6 @@
       const sp = ctx.createRadialGradient(x - cr * 0.38, y - cr * 0.42, 0, x - cr * 0.38, y - cr * 0.42, cr * 0.34);
       sp.addColorStop(0, 'rgba(190,245,255,.3)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = sp; ctx.beginPath(); ctx.arc(x - cr * 0.38, y - cr * 0.42, cr * 0.34, 0, TAU); ctx.fill();
-      ctx.restore();
-      // Kristall im Inneren (Ikosaeder), dreht gegenläufig auf zwei Achsen
-      const ph = (1 + Math.sqrt(5)) / 2; const nl = Math.hypot(1, ph);
-      const V = [[-1, ph, 0], [1, ph, 0], [-1, -ph, 0], [1, -ph, 0], [0, -1, ph], [0, 1, ph], [0, -1, -ph], [0, 1, -ph], [ph, 0, -1], [ph, 0, 1], [-ph, 0, -1], [-ph, 0, 1]].map((v) => [v[0] / nl, v[1] / nl, v[2] / nl]);
-      const E = []; for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.abs(Math.hypot(V[i][0] - V[j][0], V[i][1] - V[j][1], V[i][2] - V[j][2]) - 2 / nl) < 0.01) E.push([i, j]);
-      const pv = V.map((v) => P(rot(v[0], v[1], v[2], -t * 1.1, t * 0.7), cr * 0.62));
-      ctx.save(); ctx.shadowColor = 'rgba(80,220,255,.9)'; ctx.shadowBlur = 6;
-      for (const [i, j] of E) seg3(pv[i], pv[j], 1.5, 1, '4,44,80');
       ctx.restore();
       drawOrbits(true);
       if (!small) {

@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.24.0 – Look: Kern als drehende Erde (Kontinente, Wolken, Randlicht); Kristall und weißer Kern entfernt.
 - 2.23.1 (Claude): weißen Kern-Punkt entfernt, Kristall dunkelblau (hud.js).
 - 2.23.0 (Claude): Kern ohne Zahlen (Gradzahlen, Readouts, Hex-Ring entfernt), Kugel größer mit Randlicht + Glanzpunkt (hud.js).
 - 2.22.1 (Claude): Update-Prüfung alle 15 Min (main.js), vorher nur beim Start.
