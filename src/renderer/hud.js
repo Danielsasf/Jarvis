@@ -1,11 +1,12 @@
-// Gestochen scharfer HUD-Kern (eigenes Design): Trommel, Messring, Pegel-Segmente, Fadenkreuz.
-// Mehrschichtig wie ein Instrumenten-Display, alles ohne Weichzeichner gezeichnet.
+// NEXUS-Kern: dunkler Reaktor mit Hex-Ringen, Datenband, Partikeln und Lichtkern.
+// Alles gezeichnet (kein Bild, kein Filter) – Farben Cyan/Violett, Modus ändert den Ton.
 (() => {
   const PALETTE = {
-    idle: [72, 220, 255], thinking: [150, 236, 255], listening: [255, 176, 64], speaking: [96, 228, 255], error: [255, 92, 92],
+    idle: [64, 240, 226], thinking: [186, 128, 255], listening: [255, 190, 96], speaking: [120, 250, 255], error: [255, 84, 118],
   };
-  const SPEED = { idle: 1, thinking: 3.4, listening: 1.5, speaking: 1.8, error: 0.5 };
+  const SPEED = { idle: 1, thinking: 3.2, listening: 1.4, speaking: 1.7, error: 0.5 };
   const TAU = Math.PI * 2;
+  const VIOLET = 'rgba(139, 92, 255,';
 
   function create(canvas) {
     const ctx = canvas.getContext('2d');
@@ -24,133 +25,131 @@
       return [w, h];
     }
     const c = (a) => `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${a})`;
-    const ring = (x, y, r, w, a, dash) => {
-      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.lineWidth = w; ctx.strokeStyle = c(a);
-      ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+    const arc = (x, y, r, a0, a1, w, a) => {
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a1); ctx.lineWidth = w; ctx.strokeStyle = c(a); ctx.lineCap = 'round'; ctx.stroke();
     };
-    const arc = (x, y, r, a0, a1, w, a) => { ctx.beginPath(); ctx.arc(x, y, r, a0, a1); ctx.lineWidth = w; ctx.strokeStyle = c(a); ctx.stroke(); };
-    const tick = (x, y, a, r0, r1, w, al) => {
-      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
-      ctx.lineWidth = w; ctx.strokeStyle = c(al); ctx.stroke();
-    };
-    const label = (x, y, a, r, text, px, al) => {
-      ctx.save(); ctx.translate(x + Math.cos(a) * r, y + Math.sin(a) * r); ctx.rotate(a + Math.PI / 2);
-      ctx.fillStyle = c(al); ctx.font = `${px}px "Cascadia Mono", Consolas, monospace`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 0, 0); ctx.restore();
+    const hex = (x, y, r, rot, w, a) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const ang = rot + i * Math.PI / 3 - Math.PI / 2;
+        const px = x + Math.cos(ang) * r; const py = y + Math.sin(ang) * r;
+        if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.closePath(); ctx.lineWidth = w; ctx.strokeStyle = c(a); ctx.stroke();
     };
 
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       const target = PALETTE[mode];
-      for (let i = 0; i < 3; i++) col[i] += (target[i] - col[i]) * Math.min(1, dt * 6);
+      for (let i = 0; i < 3; i++) col[i] += (target[i] - col[i]) * Math.min(1, dt * 5);
       speed += (SPEED[mode] - speed) * Math.min(1, dt * 3);
-      level += (targetLevel - level) * Math.min(1, dt * 14);
+      level += (targetLevel - level) * Math.min(1, dt * 12);
       if (mode !== 'listening') targetLevel *= 0.9;
       t += dt * speed;
 
       const [w, h] = size();
-      const x = w / 2; const y = h / 2; const R = Math.min(w, h) / 2 - 2;
+      const x = w / 2; const y = h / 2; const R = Math.min(w, h) / 2 - 3;
       ctx.clearRect(0, 0, w, h);
-      ctx.lineCap = 'butt';
-      const small = R < 76;
+      const small = R < 78;
 
-      // 0) Grundscheibe: dunkler Teller mit feinem Rand
+      // Aura
+      const halo = ctx.createRadialGradient(x, y, R * 0.12, x, y, R * 1.05);
+      halo.addColorStop(0, c(0.16 + level * 0.22));
+      halo.addColorStop(0.38, VIOLET + ' .2)');
+      halo.addColorStop(0.72, VIOLET + ' .06)');
+      halo.addColorStop(1, 'rgba(5,4,10,0)');
+      ctx.beginPath(); ctx.arc(x, y, R * 1.05, 0, TAU); ctx.fillStyle = halo; ctx.fill();
+
+      // 1) Drei Hex-Ringe, gegenläufig
+      hex(x, y, R * 0.94, t * 0.06, 1, 0.30);
+      hex(x, y, R * 0.88, -t * 0.05 + 0.5, 1.4, 0.5);
       if (!small) {
-        const g0 = ctx.createRadialGradient(x, y, R * 0.1, x, y, R);
-        g0.addColorStop(0, 'rgba(8,16,22,.85)'); g0.addColorStop(0.72, 'rgba(6,12,17,.55)'); g0.addColorStop(1, 'rgba(4,9,13,0)');
-        ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fillStyle = g0; ctx.fill();
+        hex(x, y, R * 0.56, t * 0.03 + 1.2, 1, 0.22);
+        // Ecken-Punkte des mittleren Hexagons
+        for (let i = 0; i < 6; i++) {
+          const ang = -t * 0.05 + 0.5 + i * Math.PI / 3 - Math.PI / 2;
+          ctx.beginPath(); ctx.arc(x + Math.cos(ang) * R * 0.88, y + Math.sin(ang) * R * 0.88, 2.2, 0, TAU);
+          ctx.fillStyle = i % 2 ? VIOLET + ' .9)' : c(0.9); ctx.fill();
+        }
       }
 
-      // 1) Äußerer Gradkranz mit Beschriftung
-      if (!small) {
-        for (let i = 0; i < 240; i++) {
-          const a = (i / 240) * TAU - Math.PI / 2;
-          const major = i % 20 === 0; const mid = i % 5 === 0;
-          tick(x, y, a, R * (major ? 0.9 : mid ? 0.925 : 0.945), R * 0.985, major ? 1.5 : 1, major ? 0.95 : mid ? 0.55 : 0.28);
-        }
-        for (let d = 0; d < 360; d += 30) {
-          label(x, y, (d / 360) * TAU - Math.PI / 2, R * 0.845, String(d).padStart(3, '0'), Math.max(7, R * 0.032), 0.6);
-        }
-      }
-
-      // 2) Trommel: 60 Blöcke, langsam drehend, jeder sechste hell
-      if (!small) {
-        ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.045);
-        const blocks = 60; const rb = R * 0.875;
-        for (let i = 0; i < blocks; i++) {
-          const a0 = (i / blocks) * TAU; const span = (TAU / blocks) * 0.66;
-          const bright = i % 6 === 0;
-          arc(0, 0, rb, a0, a0 + span, bright ? 7 : 4, bright ? 0.55 : 0.2);
-        }
-        ctx.restore();
-      }
-
-      // 3) Gegenläufiger Strichring
-      ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.28);
-      ring(0, 0, R * (small ? 0.8 : 0.825), 1, 0.45, [2, 6]);
-      ctx.restore();
-
-      // 4) Messring mit Lücken und 12 Marken
-      const r2 = R * (small ? 0.9 : 0.775);
-      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.16);
-      for (const [a0, a1] of [[0.04, 1.28], [1.42, 2.02], [2.18, 3.86], [4.02, 4.42], [4.58, 6.08]]) arc(0, 0, r2, a0, a1, small ? 2 : 2.4, 0.9);
-      for (let i = 0; i < 12; i++) tick(0, 0, (i / 12) * TAU, r2 - 7, r2 + 7, i % 3 === 0 ? 2 : 1, 0.85);
-      ctx.restore();
-
-      // 5) Pegel-Segmente (Anzahl = Aktivität)
-      const segs = small ? 24 : 56;
-      const r4 = R * (small ? 0.62 : 0.655);
-      const lit = mode === 'thinking' ? null : Math.round(Math.min(1, 0.18 + level) * segs);
-      ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.09);
-      for (let i = 0; i < segs; i++) {
-        const a0 = (i / segs) * TAU; const a1 = a0 + (TAU / segs) * 0.58;
-        let on;
-        if (lit === null) {
-          const head = ((t * 1.6) % 1) * segs;
-          const d = (i - head + segs) % segs;
-          on = d < segs * 0.3 ? 1 - (d / (segs * 0.3)) * 0.8 : 0.1;
-        } else on = i < lit ? 0.95 : 0.12;
-        arc(0, 0, r4, a0, a1, small ? 3 : 6, on);
+      // 2) Datenband: 64 Blöcke, Welle läuft um
+      const blocks = small ? 32 : 64;
+      const rb = R * 0.80;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.05);
+      for (let i = 0; i < blocks; i++) {
+        const a0 = (i / blocks) * TAU; const a1 = a0 + (TAU / blocks) * 0.5;
+        const wave = 0.5 + 0.5 * Math.sin(i * 0.55 - t * 2.4);
+        const hot = wave > 0.82;
+        ctx.beginPath(); ctx.arc(0, 0, rb, a0, a1);
+        ctx.lineWidth = hot ? 7 : 4; ctx.strokeStyle = hot ? c(0.95) : VIOLET + (0.18 + wave * 0.35) + ')';
+        ctx.lineCap = 'butt'; ctx.stroke();
       }
       ctx.restore();
 
-      // 6) Innenringe, Klammern, Fadenkreuz
+      // 3) Zwei Messbögen
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.22);
+      for (const [a0, a1] of [[0.05, 1.35], [1.55, 2.35], [2.6, 4.1], [4.3, 6.1]]) arc(0, 0, R * 0.70, a0, a1, small ? 2 : 2.6, 0.85);
+      ctx.restore();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.15);
+      arc(0, 0, R * 0.645, 0.4, 2.4, 1.2, 0.45);
+      arc(0, 0, R * 0.645, 3.6, 5.6, 1.2, 0.45);
+      ctx.restore();
+
+      // 4) Partikel auf Umlaufbahnen
+      const n = small ? 16 : 30;
+      for (let i = 0; i < n; i++) {
+        const rr = R * (0.40 + ((i * 53) % 100) / 100 * 0.46);
+        const sp = (i % 2 ? 1 : -1) * (0.10 + (i % 6) * 0.03);
+        const a = t * sp + i * 1.3;
+        const px = x + Math.cos(a) * rr; const py = y + Math.sin(a) * rr;
+        const rad = i % 6 === 0 ? 2.4 : 1.3;
+        ctx.beginPath(); ctx.arc(px, py, rad, 0, TAU);
+        ctx.fillStyle = i % 3 ? c(0.75) : VIOLET + ' .85)'; ctx.fill();
+      }
+
+      // 5) Fadenkreuz-Klammern
       if (!small) {
-        ring(x, y, R * 0.55, 1, 0.45);
-        ring(x, y, R * 0.48, 1, 0.22, [1, 4]);
         for (let i = 0; i < 4; i++) {
-          const a = (i / 4) * TAU + Math.PI / 4;
-          const cx = Math.cos(a) * R * 0.52; const cy = Math.sin(a) * R * 0.52;
-          ctx.save(); ctx.translate(x + cx, y + cy); ctx.rotate(a);
-          ctx.strokeStyle = c(0.5); ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(5, -5); ctx.lineTo(5, 5); ctx.stroke();
-          ctx.restore();
+          const a = (i / 4) * TAU;
+          const r0 = R * 0.30; const r1 = R * 0.42;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0);
+          ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+          ctx.lineWidth = 1; ctx.strokeStyle = VIOLET + ' .55)'; ctx.stroke();
         }
-        for (let i = 0; i < 4; i++) tick(x, y, (i / 4) * TAU, R * 0.3, R * 0.44, 1, 0.45);
       }
 
-      // 7) Radar-Sweep, beim Nachdenken stärker
+      // 6) Sweep beim Nachdenken
       if (speed > 2) {
-        const a = t * 2.2;
-        tick(x, y, a, R * 0.3, R * 0.74, 1.6, 0.95);
-        arc(x, y, R * 0.74, a - 0.55, a, 1.6, 0.55);
+        const a = t * 2.1;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(a) * R * 0.78, y + Math.sin(a) * R * 0.78);
+        ctx.lineWidth = 1.6; ctx.strokeStyle = c(0.9); ctx.stroke();
+        arc(x, y, R * 0.78, a - 0.5, a, 2, 0.5);
       }
 
-      // 8) Kern: heller Mittelpunkt, drei Ringe
-      const pulse = 1 + level * 0.26 + Math.sin(now / 1000) * 0.015;
-      const cr = R * (small ? 0.4 : 0.2) * pulse;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, cr * 1.05);
-      g.addColorStop(0, 'rgba(244,254,255,1)'); g.addColorStop(0.42, c(0.95)); g.addColorStop(0.9, c(0.5)); g.addColorStop(1, c(0.45));
-      ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = g; ctx.fill();
-      ring(x, y, cr + 3, 1, 0.9);
-      ring(x, y, cr + 8, 1, 0.32, [2, 4]);
+      // 7) Kern
+      const pulse = 1 + level * 0.3 + Math.sin(now / 900) * 0.02;
+      const cr = R * (small ? 0.16 : 0.13) * pulse;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, cr * 2.6);
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.22, c(1));
+      g.addColorStop(0.55, c(0.35));
+      g.addColorStop(1, 'rgba(5,4,10,0)');
+      ctx.beginPath(); ctx.arc(x, y, cr * 2.6, 0, TAU); ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fill();
+      for (let i = 0; i < 3; i++) {
+        const rr = cr + 6 + i * 7;
+        hex(x, y, rr, t * (0.4 + i * 0.2) + i, 1, 0.55 - i * 0.14);
+      }
 
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
 
     return {
-      setMode(m, text) { if (PALETTE[m]) mode = m; },
+      setMode(m) { if (PALETTE[m]) mode = m; },
       setLevel(v) { targetLevel = Math.max(0, Math.min(1, v)); },
       bump(v = 0.6) { targetLevel = Math.max(targetLevel, v); },
     };
