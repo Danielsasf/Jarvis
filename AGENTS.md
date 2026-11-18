@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 3.0.0 (Claude): Großes Update. Pakete: versiegeltes .jpaket (AES-256-GCM, packs.js seal/unseal; geschützt = keine Anzeige/Bearbeitung/PDF/Re-Export). Netz: Erde als Hub (HUD.earth), glänzende Knoten, Farbverlauf-Linien, Nebel; Pakete im Netz benutzen/bearbeiten/an-aus/neu. Schnellstart-Leiste (ui.quick). Widgets: Kurven (Antwortzeit/CPU/RAM) und Schlagzeilen (news.js, tagesschau-RSS, abschaltbar). Weckwort: Wiederholung bei Mikrofonfehlern, Wächter, Neustart nach Ruhezustand. Anleitungen für Stimme, Gedächtnis, Persönlichkeit, System.
 - 2.27.0 (Claude): Aufklappbare Anleitungen in den Einstellungen (src/renderer/guides.js) mit Schritten und Links; Links in main.js freigegeben.
 - 2.26.0 (Claude): Pakete als PDF exportieren („Als PDF“ in der Paketliste, main.js packs:pdf, packPdfHtml).
 - 2.25.0 (Claude): Erde mit echten Küstenlinien aus Natural Earth 1:50m (gemeinfrei) als eingebettete Karte (src/renderer/earth-data.js), Klimazonen, Eis, Wolken, Meeresglanz; Gitter entfernt (hud.js).

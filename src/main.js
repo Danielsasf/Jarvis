@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { runWithFallback, callWithRetry } = require('./router');
@@ -6,6 +6,7 @@ const { PROVIDERS, getProvider, listModels, chatStream, transcribe, pickDefaultM
 const { CODE_VERSION, UPDATE_REPO } = require('./version');
 const updater = require('./updater');
 const packsLib = require('./packs');
+const newsLib = require('./news');
 const GUIDES = require('./renderer/guides.js');
 const GUIDE_URLS = new Set(Object.values(GUIDES).flatMap((g) => g.links.map((l) => l.url)));
 const { Memory, stripTags } = require('./memory');
@@ -100,6 +101,7 @@ function normalize(c) {
   c.gcal = { clientId: '', clientSecret: '', refresh: '', ...(c.gcal || {}) };
   c.cal = { enabled: false, url: '', days: 7, ...(c.cal || {}) };
   c.weather = { city: '', name: '', lat: null, lon: null, ...(c.weather || {}) };
+  c.news = { enabled: true, ...(c.news || {}) };
   c.mail = { enabled: false, preset: 'webde', host: 'imap.web.de', port: 993, user: '', pass: '', days: 3, ...(c.mail || {}) };
   c.settings = { systemPrompt: DEFAULT_SYSTEM, speak: true, timeoutSec: 60, autoUpdate: true, wakeWord: false, wakeSens: 'mid', voice: '', rate: 1.1,
     race: true, hedgeSec: 5, speedOrder: true, fontSize: 14.5, ...(c.settings || {}) };
@@ -135,8 +137,9 @@ function publicState() {
   return {
     version: CODE_VERSION,
     order: cfg.order,
+    news: { enabled: cfg.news.enabled !== false },
     packs: packs.map((p) => ({ id: p.id, name: p.name, befehl: p.befehl, beschreibung: p.beschreibung, symbol: p.symbol,
-      beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), instructions: p.instructions })),
+      beispiele: p.beispiele, builtin: p.builtin, error: p.error, enabled: packOn(p), locked: !!p.locked, instructions: p.locked ? '' : p.instructions })),
     memory: memory.list(),
     remote: remoteInfo(),
     notify: { enabled: cfg.notify.enabled, server: cfg.notify.server, topic: cfg.notify.topic, private: cfg.notify.private, quiet: cfg.notify.quiet, events: cfg.notify.events, lead: cfg.notify.lead,
@@ -415,7 +418,7 @@ ipcMain.handle('stt:transcribe', async (_e, audio, mime) => {
 });
 
 ipcMain.handle('open:external', (_e, url) => {
-  if (PROVIDERS.some((p) => p.keyUrl === url) || GUIDE_URLS.has(url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
+  if (PROVIDERS.some((p) => p.keyUrl === url) || GUIDE_URLS.has(url) || newsLinks.has(url) || url === `https://github.com/${UPDATE_REPO}/releases`) shell.openExternal(url);
 });
 
 // ---------- E-Mail (nur lesen) ----------
@@ -634,9 +637,25 @@ ipcMain.handle('weather:set', async (_e, city) => {
   return publicState();
 });
 
+// ---------- Schlagzeilen (öffentlicher RSS-Feed, kostenlos) ----------
+let newsCache = null; const newsLinks = new Set();
+ipcMain.handle('news:get', async () => {
+  if (cfg.news.enabled === false) return { enabled: false };
+  if (newsCache && Date.now() - newsCache.at < 20 * 60 * 1000) return { enabled: true, ...newsCache.data };
+  try {
+    const data = await newsLib.fetchNews();
+    newsCache = { at: Date.now(), data }; data.items.forEach((i) => newsLinks.add(i.link));
+    return { enabled: true, ...data };
+  } catch (e) {
+    return newsCache ? { enabled: true, stale: true, ...newsCache.data } : { enabled: true, error: /^Nachrichtendienst|^Keine Schlagzeilen/.test(String(e.message)) ? String(e.message) : 'Schlagzeilen gerade nicht erreichbar.' };
+  }
+});
+ipcMain.handle('news:set', (_e, on) => { cfg.news.enabled = !!on; saveCfg(); return publicState(); });
+
 // ---------- Pakete ----------
 ipcMain.handle('packs:toggle', (_e, id, on) => { cfg.packs ||= {}; cfg.packs[id] = !!on; saveCfg(); return publicState(); });
 ipcMain.handle('packs:save', (_e, data) => {
+  if (data.originalId && packs.find((p) => p.id === data.originalId)?.locked) throw new Error('Geschützte Pakete lassen sich nicht ändern.');
   const text = packsLib.serializePack(data);
   const pack = packsLib.parsePack(text); // prüft alles
   const clash = packs.find((p) => !p.builtin && p.befehl === pack.befehl && p.id !== data.originalId);
@@ -652,17 +671,37 @@ ipcMain.handle('packs:save', (_e, data) => {
 });
 ipcMain.handle('packs:import', async () => {
   const r = await dialog.showOpenDialog(win, { title: 'Paket hinzufügen', properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'Jarvis-Pakete', extensions: ['md'] }] });
+    filters: [{ name: 'Jarvis-Pakete', extensions: ['md', 'jpaket'] }] });
   if (r.canceled) return { state: publicState(), added: [] };
   const added = [];
   for (const file of r.filePaths) {
-    const pack = packsLib.parsePack(fs.readFileSync(file, 'utf8'));
-    fs.writeFileSync(path.join(userPackDir(), `${pack.id}.paket.md`), fs.readFileSync(file, 'utf8'));
-    added.push(pack.name);
+    const raw = fs.readFileSync(file, 'utf8');
+    if (file.toLowerCase().endsWith('.jpaket')) {
+      const pack = packsLib.parsePack(packsLib.unseal(raw)); // prüft Siegel und Inhalt
+      fs.writeFileSync(path.join(userPackDir(), `${pack.id}.jpaket`), raw);
+      fs.rmSync(path.join(userPackDir(), `${pack.id}.paket.md`), { force: true }); // gleicher Befehl: das geschützte Paket gilt
+      added.push(`${pack.name} (geschützt)`);
+    } else {
+      const pack = packsLib.parsePack(raw);
+      if (packs.find((p) => p.id === pack.id)?.locked) throw new Error(`„${pack.name}“ ist schon als geschütztes Paket da. Lösche es zuerst, wenn du es ersetzen willst.`);
+      fs.writeFileSync(path.join(userPackDir(), `${pack.id}.paket.md`), raw);
+      added.push(pack.name);
+    }
   }
   reloadPacks();
   log(`Paket(e) hinzugefügt: ${added.join(', ')}`);
   return { state: publicState(), added };
+});
+// Eigenes Paket als geschützte Datei (.jpaket) weitergeben: verschlüsselt, ohne Anzeige und ohne Bearbeiten beim Empfänger
+ipcMain.handle('packs:export', async (_e, id) => {
+  const p = packs.find((x) => x.id === id && !x.error);
+  if (!p || p.builtin) throw new Error('Nur eigene Pakete lassen sich exportieren.');
+  if (p.locked) throw new Error('Geschützte Pakete lassen sich nicht weitergeben.');
+  const r = await dialog.showSaveDialog(win, { title: 'Geschütztes Paket speichern', defaultPath: `${p.id}.jpaket`, filters: [{ name: 'Geschütztes Jarvis-Paket', extensions: ['jpaket'] }] });
+  if (r.canceled || !r.filePath) return { saved: false };
+  fs.writeFileSync(r.filePath, packsLib.seal(packsLib.serializePack(p)));
+  log(`Paket „${p.name}“ geschützt exportiert`);
+  return { saved: true, file: r.filePath };
 });
 ipcMain.handle('packs:delete', (_e, id) => {
   const p = packs.find((x) => x.id === id && !x.builtin);
@@ -691,6 +730,7 @@ function packPdfHtml(p) {
 ipcMain.handle('packs:pdf', async (_e, id) => {
   const p = packs.find((x) => x.id === id && !x.error);
   if (!p) throw new Error('Paket nicht gefunden.');
+  if (p.locked) throw new Error('Geschützte Pakete lassen sich nicht als PDF speichern.');
   const r = await dialog.showSaveDialog(win, { title: 'Paket als PDF speichern', defaultPath: `${p.id}.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
   if (r.canceled || !r.filePath) return { saved: false };
   const hidden = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, javascript: false } });
@@ -773,6 +813,8 @@ app.whenReady().then(() => {
     onHeard: (h) => emit('wake:event', { type: 'heard', ...h }),
   });
   reloadPacks();
+  // Nach dem Aufwachen aus dem Ruhezustand (oder Entsperren) startet das Weckwort neu: danach ist das Mikrofon oft weg
+  try { powerMonitor.on('resume', () => setTimeout(() => wake?.restart(), 3000)); powerMonitor.on('unlock-screen', () => { if (wake?.state?.state !== 'ready') wake?.restart(); }); } catch { /* egal */ }
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));
   session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'media');
   createWindow();

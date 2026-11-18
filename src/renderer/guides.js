@@ -38,6 +38,14 @@
           ],
         },
         {
+          heading: 'Pakete schützen und weitergeben',
+          steps: [
+            'Bei einem eigenen Paket auf „Geschützt exportieren“ klicken und einen Speicherort wählen. Es entsteht eine verschlüsselte Datei mit der Endung .jpaket.',
+            'Wer die Datei bekommt, fügt sie mit „Datei hinzufügen“ ein. Das Paket funktioniert dann ganz normal über seinen Befehl.',
+            'Beim Empfänger steht „Geschützt“ am Paket. Er kann die Anweisungen nicht ansehen, nicht ändern, nicht als PDF speichern und nicht erneut exportieren.',
+          ],
+        },
+        {
           heading: 'Pakete als Datei',
           steps: [
             '„Datei hinzufügen“: Du wählst eine fertige Paket-Datei (.paket.md) aus und Jarvis übernimmt sie.',
@@ -46,7 +54,7 @@
           ],
         },
       ],
-      note: 'Eingebaute Pakete kannst du nicht ändern, aber mit „Als Vorlage kopieren“ als eigene Version anlegen.',
+      note: 'Eingebaute Pakete kannst du nicht ändern, aber mit „Als Vorlage kopieren“ als eigene Version anlegen. Ehrlich gesagt: Der Schutz hält Neugierige ab, ist aber kein Tresor. Die Anweisungen gehen beim Benutzen an die KI, und wer den Programmcode gezielt auseinandernimmt, kommt an sie heran. Die Schnellstart-Leiste (Knöpfe über dem Eingabefeld) schaltest du hier oben ein und aus.',
       links: [],
     },
     kalender: {
@@ -124,6 +132,104 @@
       note: 'Jarvis muss auf dem PC laufen, damit das Handy antworten kann. Gekoppelte Handys kannst du unten jederzeit entfernen.',
       links: [
         { label: 'Tailscale herunterladen', url: 'https://tailscale.com/download' },
+      ],
+    },
+    stimme: {
+      title: 'So richtest du „Hey Jarvis“ und die Stimme ein (Anleitung)',
+      intro: 'Das Weckwort nutzt die eingebaute Windows-Spracherkennung. Es läuft nur auf deinem PC. Erst nach dem Weckwort geht deine Frage an die KI.',
+      sections: [
+        {
+          heading: 'Weckwort einschalten',
+          steps: [
+            'Den Schalter bei „Hey Jarvis“ einschalten. Beim ersten Mal fragt Windows nach dem Mikrofon: Zugriff erlauben.',
+            'Warten, bis hier „Bereit“ steht. Dann „Hey Jarvis“ sagen, auf den Piep warten und deine Frage sprechen.',
+            'Reagiert Jarvis zu oft von selbst, die Empfindlichkeit niedriger stellen. Hört er dich nicht, höher.',
+          ],
+        },
+        {
+          heading: 'Wenn es nicht klappt',
+          steps: [
+            'Steht dort „Keine Windows-Spracherkennung“: Windows-Einstellungen → Zeit und Sprache → Sprache → Deutsch → Optionen → Spracherkennung hinzufügen.',
+            'Steht dort „Neuer Versuch“: Das Mikrofon ist gerade nicht erreichbar (z. B. Headset abgesteckt). Jarvis probiert es automatisch weiter. Nach dem Aufwachen des PCs startet er das Weckwort selbst neu.',
+            'Windows-Einstellungen → Datenschutz → Mikrofon prüfen: „Desktop-Apps den Zugriff erlauben“ muss an sein.',
+          ],
+        },
+        {
+          heading: 'Stimme und Vorlesen',
+          steps: [
+            '„Antworten vorlesen“ einschalten, dann spricht Jarvis schon während er schreibt.',
+            'Unter „Stimme“ eine Windows-Stimme wählen und mit „Probe hören“ ausprobieren. Weitere deutsche Stimmen: Windows → Zeit und Sprache → Sprache.',
+          ],
+        },
+      ],
+      note: 'Das Weckwort gibt es nur unter Windows.',
+      links: [],
+    },
+    gedaechtnis: {
+      title: 'So nutzt du das Gedächtnis (Anleitung)',
+      intro: 'Was Jarvis hier gespeichert hat, weiß er in allen Chats. Es bleibt auf deinem PC.',
+      sections: [{
+        heading: 'Etwas merken oder vergessen',
+        steps: [
+          'Im Chat sagen oder schreiben: „Merk dir, dass …“. Jarvis speichert den Satz und zeigt ihn hier in der Liste.',
+          'Oder oben im Feld etwas eintippen und „Merken“ klicken.',
+          '„Vergiss …“ im Chat entfernt eine Erinnerung. In der Liste kannst du jede einzelne löschen. „Alles vergessen“ leert das ganze Gedächtnis.',
+        ],
+      }],
+      note: 'Die Erinnerungen gehen als Hintergrundwissen an die KI, die gerade antwortet. Schreib deshalb keine Passwörter hinein.',
+      links: [],
+    },
+    persoenlichkeit: {
+      title: 'So änderst du Jarvis’ Verhalten (Anleitung)',
+      intro: 'Dieser Text sagt Jarvis, wie er sich verhalten soll: Ton, Länge der Antworten, Sprache.',
+      sections: [{
+        heading: 'In 3 Schritten',
+        steps: [
+          'Den Text unten anpassen, z. B. „Antworte immer kurz und auf Deutsch“ oder „Sprich mich mit Du an“.',
+          '„Speichern“ klicken. Gilt ab der nächsten Nachricht, auch in schon offenen Chats.',
+          'Gefällt dir das Ergebnis nicht: „Zurücksetzen“ stellt den ursprünglichen Text wieder her.',
+        ],
+      }],
+      note: 'Kurze, klare Sätze funktionieren am besten. Für eine feste Aufgabe (z. B. Bewerbungen) ist ein Paket besser geeignet.',
+      links: [],
+    },
+    system: {
+      title: 'Updates, Wetter, Schlagzeilen und Ansichten (Anleitung)',
+      intro: 'Hier steht alles, was Jarvis selbst betrifft.',
+      sections: [
+        {
+          heading: 'Updates installieren',
+          steps: [
+            'Jarvis prüft beim Start und danach alle 15 Minuten selbst. „Jetzt prüfen“ erzwingt eine Prüfung sofort.',
+            'Gibt es ein Update, erscheint oben ein Hinweis mit „Installieren“. Klicken, Jarvis startet neu. Schlüssel und Einstellungen bleiben erhalten.',
+            'Oben links neben „JARVIS“ steht deine Versionsnummer.',
+          ],
+        },
+        {
+          heading: 'Wetter einstellen',
+          steps: [
+            'Unter „Wetter“ den Ort eintippen, z. B. „Hamburg“, und „Speichern“ klicken.',
+            'Das Wetter-Widget erscheint links auf dem Hauptbildschirm. Nur der Ortsname geht an den kostenlosen Dienst open-meteo.com.',
+          ],
+        },
+        {
+          heading: 'Schlagzeilen ein- und ausschalten',
+          steps: [
+            'Der Schalter „Schlagzeilen anzeigen“ blendet rechts auf dem Hauptbildschirm die aktuellen Meldungen von tagesschau.de ein.',
+            'Ein Klick auf eine Schlagzeile öffnet sie im Browser. Ausgeschaltet ruft Jarvis nichts ab.',
+          ],
+        },
+        {
+          heading: 'Ansichten bedienen',
+          steps: [
+            'Oben rechts das Netz-Symbol: Netz-Ansicht mit allen Paketen, KIs und Erinnerungen als Sternenkarte. Klick auf einen Punkt zeigt links seine Details. Bei Paketen kannst du dort benutzen, bearbeiten und ein- oder ausschalten.',
+            'Die anderen Symbole blenden Chat-Verlauf, Eingabefeld und Seitenleiste ein und aus.',
+          ],
+        },
+      ],
+      note: 'Die Kurven links unten zeigen die letzten Antwortzeiten der KI sowie CPU und Arbeitsspeicher.',
+      links: [
+        { label: 'Was ist neu? Alle Versionen auf GitHub', url: 'https://github.com/Danielsasf/jarvis/releases' },
       ],
     },
     melden: {

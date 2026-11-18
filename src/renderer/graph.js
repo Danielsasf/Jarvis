@@ -11,7 +11,7 @@
     const link = (a, b) => { const k = a < b ? `${a}|${b}` : `${b}|${a}`; if (a !== b && !seen.has(k)) { seen.add(k); edges.push([a, b]); } };
     for (const p of packs) {
       if (p.error) continue;
-      nodes.push({ id: `p:${p.id}`, type: 'pack', label: p.name, text: p.beschreibung || '', cmd: p.befehl, on: p.enabled !== false, r: 8.5, kw: tokens(`${p.name} ${p.beschreibung} ${(p.beispiele || []).join(' ')}`) });
+      nodes.push({ id: `p:${p.id}`, type: 'pack', label: p.name, text: p.beschreibung || '', cmd: p.befehl, pid: p.id, locked: !!p.locked, on: p.enabled !== false, r: 8.5, kw: tokens(`${p.name} ${p.beschreibung} ${(p.beispiele || []).join(' ')}`) });
       link('hub', `p:${p.id}`);
     }
     for (const k of providers) {

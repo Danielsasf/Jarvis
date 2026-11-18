@@ -7,7 +7,7 @@
   const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
-  let cb = { onCommand() {} };
+  let cb = { onCommand() {}, onPackAction() {} };
   let graph = { nodes: [], edges: [] }; let sig = ''; let selected = null; let hover = null;
   let view = { s: 1, tx: 0, ty: 0 }; let labels = true; let alpha = 1; let stars = []; let ring = null;
   let W = 0; let H = 0; let ctx = null; let cv = null; let running = false; const log = []; let lastData = null;
@@ -22,8 +22,8 @@
   function makeStars() {
     const n = Math.round(Math.min(520, W * H / 1500));
     stars = Array.from({ length: n }, () => {
-      const big = Math.random() < 0.12;
-      return { x: Math.random() * W, y: Math.random() * H, r: big ? 1.8 + Math.random() * 1.4 : 0.8 + Math.random() * 0.9, a: 0.7 + Math.random() * 0.3, ph: Math.random() * 6.28, sp: 0.6 + Math.random() * 1.8, warm: Math.random() < 0.25, drift: 1 + Math.random() * 3 };
+      const big = Math.random() < 0.16;
+      return { x: Math.random() * W, y: Math.random() * H, r: big ? 2 + Math.random() * 1.6 : 0.9 + Math.random() * 1.0, a: 0.85 + Math.random() * 0.15, big, ph: Math.random() * 6.28, sp: 0.6 + Math.random() * 1.8, warm: Math.random() < 0.25, drift: 1 + Math.random() * 3 };
     });
   }
   const toScreen = (n) => [W / 2 + view.tx + n.x * view.s, H / 2 + view.ty + n.y * view.s];
@@ -50,15 +50,15 @@
       if ((q[2] > 0) === front) { ctx.save(); ctx.shadowColor = 'rgba(150,235,255,1)'; ctx.shadowBlur = 10; ctx.fillStyle = `rgba(245,254,255,${dim})`; ctx.beginPath(); ctx.arc(q[0], q[1], front ? 3.2 : 2.2, 0, 6.2832); ctx.fill(); ctx.restore(); }
     });
     orbit(false);
-    ctx.save(); ctx.shadowColor = rgba(c, 0.9 * dim); ctx.shadowBlur = 24;
-    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.05, x, y, r);
-    g.addColorStop(0, `rgba(240,253,255,${0.95 * dim})`); g.addColorStop(0.5, `rgba(96,200,255,${0.6 * dim})`); g.addColorStop(1, `rgba(40,120,200,${0.2 * dim})`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); ctx.restore();
-    for (let m = 0; m < 6; m++) { const lon = (m / 6) * Math.PI; let prev = null; for (let i = 0; i <= 36; i++) { const a = (i / 36) * 6.2832; const pt = P(rot(Math.cos(a) * Math.cos(lon), Math.sin(a), Math.cos(a) * Math.sin(lon), ay0, 0.4), r); if (prev) seg(prev, pt, 1, 0.8, '4,28,44'); prev = pt; } }
-    for (let l = 1; l <= 4; l++) { const lat = (l / 5) * Math.PI - Math.PI / 2; const rr = Math.cos(lat); let prev = null; for (let i = 0; i <= 36; i++) { const a = (i / 36) * 6.2832; const pt = P(rot(Math.cos(a) * rr, Math.sin(lat), Math.sin(a) * rr, ay0, 0.4), r); if (prev) seg(prev, pt, 1, 0.8, '4,28,44'); prev = pt; } }
-    const V = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((v) => P(rot(v[0], v[1], v[2], -t * 1.2, t * 0.8), r * 0.6));
-    for (let i = 0; i < 6; i++) for (let j = i + 1; j < 6; j++) if (!((i ^ j) === 1 && i % 2 === 0)) seg(V[i], V[j], 1.3, 1, '250,255,255');
-    ctx.save(); ctx.shadowColor = '#fff'; ctx.shadowBlur = 12; ctx.fillStyle = `rgba(255,255,255,${dim})`; ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, 6.2832); ctx.fill(); ctx.restore();
+    // Die Erde im Zentrum (gleiche Textur wie der Kern auf dem Hauptbildschirm)
+    const S = Math.max(48, Math.min(300, Math.round(r * 2 * Math.min(2, window.devicePixelRatio || 1))));
+    ctx.save(); ctx.globalAlpha = dim; ctx.shadowColor = 'rgba(72,220,255,.95)'; ctx.shadowBlur = 26;
+    if (window.HUD?.earth) ctx.drawImage(window.HUD.earth(S, t * 0.3, 0.41, [72, 220, 255], t), x - r, y - r, r * 2, r * 2);
+    ctx.restore();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = dim;
+    const atm = ctx.createRadialGradient(x, y, r * 0.78, x, y, r * 1.12);
+    atm.addColorStop(0, 'rgba(72,220,255,0)'); atm.addColorStop(0.85, 'rgba(72,220,255,.4)'); atm.addColorStop(1, 'rgba(72,220,255,0)');
+    ctx.fillStyle = atm; ctx.beginPath(); ctx.arc(x, y, r * 1.12, 0, 6.2832); ctx.fill(); ctx.restore();
     orbit(true);
   }
 
@@ -70,24 +70,35 @@
     if (alpha > 0.02) { G.step(graph.nodes, graph.edges, alpha); alpha *= 0.985; }
     ctx.clearRect(0, 0, W, H);
     const t = now / 1000;
+    // Weicher Nebel hinter dem Netz, damit der Raum Tiefe bekommt
+    const neb = (cx, cy, rad, col) => { const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad); g.addColorStop(0, `rgba(${col},.16)`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g; ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2); };
+    neb(W * 0.3 + Math.sin(t * 0.07) * 30, H * 0.35, Math.max(W, H) * 0.5, '40,110,200'); neb(W * 0.75, H * 0.7 + Math.cos(t * 0.06) * 24, Math.max(W, H) * 0.45, '110,70,200');
     // Sternenfeld (klar sichtbar, funkelt, driftet langsam)
     for (const s of stars) {
-      const a = s.a * (0.62 + 0.38 * Math.sin(t * s.sp + s.ph));
+      const a = s.a * (0.7 + 0.3 * Math.sin(t * s.sp + s.ph));
       const x = (s.x + t * s.drift * 0.4) % W; const y = s.y;
-      ctx.fillStyle = s.warm ? `rgba(255,236,190,${a})` : `rgba(200,236,255,${a})`;
+      ctx.fillStyle = s.warm ? `rgba(255,240,200,${a})` : `rgba(215,242,255,${a})`;
+      if (s.big) { ctx.save(); ctx.shadowColor = s.warm ? 'rgba(255,220,150,.9)' : 'rgba(160,220,255,.9)'; ctx.shadowBlur = 9; }
       ctx.beginPath(); ctx.arc(x, y, s.r, 0, 6.2832); ctx.fill();
-      if (s.r > 1.7) { ctx.strokeStyle = `rgba(200,236,255,${a * 0.4})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - s.r * 3, y); ctx.lineTo(x + s.r * 3, y); ctx.moveTo(x, y - s.r * 3); ctx.lineTo(x, y + s.r * 3); ctx.stroke(); }
+      if (s.big) ctx.restore();
+      if (s.r > 1.9) { ctx.strokeStyle = `rgba(215,242,255,${a * 0.5})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - s.r * 3.4, y); ctx.lineTo(x + s.r * 3.4, y); ctx.moveTo(x, y - s.r * 3.4); ctx.lineTo(x, y + s.r * 3.4); ctx.stroke(); }
     }
     const idx = new Map(graph.nodes.map((n) => [n.id, n]));
     const focus = selected || hover; const near = focus ? G.neighbors(graph, focus.id) : null;
     const lit = (n) => !focus || n.id === focus.id || near.has(n.id);
-    // Linien
+    // Linien: Farbverlauf zwischen den Punkten, bei Fokus leuchtend mit wandernden Lichtpunkten
     for (const [a, b] of graph.edges) {
       const A = idx.get(a); const B = idx.get(b); if (!A || !B) continue;
       const [x1, y1] = toScreen(A); const [x2, y2] = toScreen(B);
       const on = focus && (a === focus.id || b === focus.id);
-      ctx.strokeStyle = on ? 'rgba(150,235,255,.85)' : focus ? 'rgba(120,200,255,.05)' : 'rgba(120,200,255,.2)';
-      ctx.lineWidth = on ? 1.6 : 1; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      const al = on ? 0.95 : focus ? 0.06 : 0.3;
+      const gr = ctx.createLinearGradient(x1, y1, x2, y2); gr.addColorStop(0, rgba(COLORS[A.type], al)); gr.addColorStop(1, rgba(COLORS[B.type], al));
+      ctx.save(); if (on) { ctx.shadowColor = 'rgba(150,235,255,.9)'; ctx.shadowBlur = 8; }
+      ctx.strokeStyle = gr; ctx.lineWidth = on ? 2 : 1.1; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+      if (!focus || on) {
+        const k = ((t * (on ? 0.55 : 0.22) + (a.length * 0.37 + b.length * 0.11)) % 1);
+        ctx.fillStyle = on ? 'rgba(255,255,255,.95)' : 'rgba(190,240,255,.55)'; ctx.beginPath(); ctx.arc(x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, on ? 2.4 : 1.5, 0, 6.2832); ctx.fill();
+      }
     }
     // Punkte
     for (const n of graph.nodes) {
@@ -96,8 +107,12 @@
       const r = n.r * view.s * (n.id === (selected && selected.id) ? 1.25 : 1) * (1 + grow * 0.8);
       const pulse = n.type === 'hub' ? 1 + Math.sin(t * 2) * 0.06 : 1;
       if (n.type === 'hub') { hub3d(x, y, r * 1.5 * pulse, t, c, dim); continue; }
-      ctx.save(); ctx.shadowColor = rgba(c, 0.9 * dim); ctx.shadowBlur = 10 * (1 + grow * 2);
-      ctx.fillStyle = rgba(c, dim); ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, 6.2832); ctx.fill(); ctx.restore();
+      const rr = r * pulse; const hi = c.map((v) => Math.min(255, v + (255 - v) * 0.65)); const lo = c.map((v) => v * 0.3);
+      ctx.save(); ctx.shadowColor = rgba(c, 0.9 * dim); ctx.shadowBlur = 14 * (1 + grow * 2);
+      const sg = ctx.createRadialGradient(x - rr * 0.35, y - rr * 0.4, rr * 0.05, x, y, rr);
+      sg.addColorStop(0, rgba(hi, dim)); sg.addColorStop(0.5, rgba(c, dim)); sg.addColorStop(1, rgba(lo, dim));
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.fill(); ctx.restore();
+      ctx.strokeStyle = `rgba(255,255,255,${0.35 * dim})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.stroke();
       if (grow > 0) { ctx.strokeStyle = rgba(c, grow * 0.8); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r + (1 - grow) * 34, 0, 6.2832); ctx.stroke(); }
       if (n.type === 'hub') { ctx.strokeStyle = rgba(c, 0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r + 8 + Math.sin(t * 1.4) * 2, 0, 6.2832); ctx.stroke(); }
     }
@@ -141,18 +156,26 @@
     if (!selected) { el.innerHTML = '<p class="nz-hint">Klick auf einen Punkt: nur er und seine Verbindungen leuchten, hier steht sein Inhalt.</p>'; return; }
     const n = selected; const near = [...G.neighbors(graph, n.id)].map((id) => graph.nodes.find((x) => x.id === id)).filter(Boolean);
     let extra = '';
-    if (n.type === 'pack') extra = `<code>${esc(n.cmd)}</code>${n.on === false ? ' · aus' : ''}`;
+    if (n.type === 'pack') extra = `<code>${esc(n.cmd)}</code>${n.on === false ? ' · aus' : ''}${n.locked ? ' · geschützt' : ''}`;
     if (n.type === 'memory') extra = `${n.date ? new Date(n.date).toLocaleDateString('de-DE') : ''}${n.by === 'du' ? ' · von dir' : ''}`;
     el.innerHTML = `<h5>${esc(n.type === 'memory' ? 'Erinnerung' : n.label)}</h5><small>${TYPE[n.type]} · ${n.deg} Verbindungen ${extra ? '· ' + extra : ''}</small><p>${esc(n.text)}</p>`
       + (near.length ? `<div class="nz-chips">${near.slice(0, 8).map((m) => `<button data-id="${esc(m.id)}">${esc(G.clip(m.label, 22))}</button>`).join('')}</div>` : '');
     el.querySelectorAll('[data-id]').forEach((b) => { b.onclick = () => select(graph.nodes.find((x) => x.id === b.dataset.id)); });
-    if (n.type === 'pack') { const b = document.createElement('button'); b.className = 'nz-use'; b.textContent = `${n.cmd} benutzen`; b.onclick = () => cb.onCommand(n.cmd); el.appendChild(b); }
+    if (n.type === 'pack') {
+      const row = document.createElement('div'); row.className = 'nz-acts';
+      const mk = (txt, cls, fn, dis) => { const b = document.createElement('button'); b.className = cls; b.textContent = txt; if (dis) { b.disabled = true; b.title = 'Geschützte Pakete lassen sich nicht ändern'; } else b.onclick = fn; row.appendChild(b); };
+      mk(`${n.cmd} benutzen`, 'nz-use', () => cb.onCommand(n.cmd));
+      mk('Bearbeiten', 'nz-use', () => cb.onPackAction('edit', n), n.locked);
+      mk(n.on === false ? 'Einschalten' : 'Ausschalten', 'nz-use', () => cb.onPackAction('toggle', n));
+      el.appendChild(row);
+    }
   }
 
   function panels() {
     const packs = graph.nodes.filter((n) => n.type === 'pack');
     $('nzCmds').innerHTML = packs.length ? packs.map((p) => `<button data-cmd="${esc(p.cmd)}"${p.on === false ? ' class="off"' : ''}><b>${esc(p.cmd)}</b><small>${esc(G.clip(p.label, 16))}</small></button>`).join('') : '<p class="nz-hint">Noch keine Pakete.</p>';
     $('nzCmds').querySelectorAll('[data-cmd]').forEach((b) => { b.onclick = () => cb.onCommand(b.dataset.cmd); });
+    const add = document.createElement('button'); add.className = 'nz-add'; add.textContent = '+ Neues Paket'; add.onclick = () => cb.onPackAction('new'); $('nzCmds').appendChild(add);
     const top = [...graph.nodes].filter((n) => n.type !== 'hub').sort((a, b) => b.deg - a.deg).slice(0, 8);
     $('nzTop').innerHTML = top.map((n) => `<li data-id="${esc(n.id)}"><i class="t-${n.type}"></i>${esc(G.clip(n.label, 24))}<b>${n.deg}</b></li>`).join('');
     $('nzTop').querySelectorAll('li').forEach((li) => { li.onclick = () => select(graph.nodes.find((x) => x.id === li.dataset.id)); });
@@ -177,7 +200,7 @@
     setData(d) {
       lastData = d; if (!cv) return;
       const g = G.buildGraph(d); const s = G.signature(g);
-      if (s === sig) { graph.nodes.forEach((n) => { const m = g.nodes.find((x) => x.id === n.id); if (m) { n.text = m.text; n.label = m.label; } }); return; }
+      if (s === sig) { graph.nodes.forEach((n) => { const m = g.nodes.find((x) => x.id === n.id); if (m) { n.text = m.text; n.label = m.label; n.on = m.on; n.locked = m.locked; } }); if (selected) inspect(); return; }
       const first = !sig; const fresh = G.place(g.nodes, graph.nodes);
       graph = g; sig = s; alpha = first ? 1.6 : 0.8;
       if (first) { for (let i = 0; i < 220; i++) G.step(graph.nodes, graph.edges, 1); alpha = 0.3; fit(); }

@@ -10,6 +10,7 @@
 // Anweisungen für Jarvis …
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 function slug(s) {
   return String(s).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
@@ -56,13 +57,40 @@ function serializePack({ name, befehl, beschreibung = '', symbol = '', beispiele
     'beispiele:', ...beispiele.filter(Boolean).map((b) => `  - ${esc(b)}`), '---', '', instructions.trim(), ''].filter((l) => l !== null).join('\n');
 }
 
+
+// ---- Versiegelte Pakete (.jpaket): verschlüsselt (AES-256-GCM), nur von Jarvis lesbar ----
+// Hinweis: Der Schlüssel steckt im Programm. Das hält Neugierige ab (kein Klartext, keine Anzeige in der App),
+// ist aber kein Schutz gegen jemanden, der den Programmcode gezielt auseinandernimmt.
+const SEAL_MAGIC = 'JARVISPAKET1:';
+const sealKey = () => crypto.scryptSync('jarvis-paket-siegel-v1', 'jarvis-paket-salz', 32);
+function seal(text) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', sealKey(), iv);
+  const ct = Buffer.concat([c.update(String(text), 'utf8'), c.final()]);
+  return SEAL_MAGIC + Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64');
+}
+function unseal(data) {
+  const t = String(data).trim();
+  if (!t.startsWith(SEAL_MAGIC)) throw new Error('Das ist kein Jarvis-Paket (.jpaket).');
+  try {
+    const raw = Buffer.from(t.slice(SEAL_MAGIC.length), 'base64');
+    const d = crypto.createDecipheriv('aes-256-gcm', sealKey(), raw.subarray(0, 12));
+    d.setAuthTag(raw.subarray(12, 28));
+    return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8');
+  } catch { throw new Error('Das Paket ist beschädigt oder wurde verändert.'); }
+}
+
 function loadDir(dir, builtin) {
   const out = [];
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return out; }
-  for (const n of names.filter((x) => x.endsWith('.paket.md')).sort()) {
+  for (const n of names.filter((x) => x.endsWith('.paket.md') || x.endsWith('.jpaket')).sort()) {
     const file = path.join(dir, n);
-    try { out.push({ ...parsePack(fs.readFileSync(file, 'utf8'), file), builtin }); }
+    const locked = n.endsWith('.jpaket');
+    try {
+      const raw = fs.readFileSync(file, 'utf8');
+      out.push({ ...parsePack(locked ? unseal(raw) : raw, file), builtin, locked });
+    }
     catch (err) { out.push({ id: `fehler-${slug(n)}`, name: n, error: err.message, builtin, source: file }); }
   }
   return out;
@@ -83,4 +111,4 @@ function matchCommand(text, packs) {
   return pack ? { pack, rest: m[2].trim() } : null;
 }
 
-module.exports = { parsePack, serializePack, loadAll, matchCommand, slug };
+module.exports = { parsePack, serializePack, loadAll, matchCommand, slug, seal, unseal };

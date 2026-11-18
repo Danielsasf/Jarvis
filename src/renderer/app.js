@@ -61,11 +61,12 @@ function renderNetz() {
 }
 // ---------- Ansicht: Verlauf / Eingabe / Seitenleiste (Standard: alles zu, nur Kern + mitlaufende Schrift) ----------
 const UI_KEY = 'jarvis.ui';
-let ui = { hideChat: true, hideInput: false, side: false, netz: false };
+let ui = { hideChat: true, hideInput: false, side: false, netz: false, quick: true };
 try { ui = { ...ui, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') }; } catch { /* egal */ }
 function applyUi() {
   const b = document.body.classList;
   b.toggle('view-netz', !!ui.netz); $('netzToggle').setAttribute('aria-pressed', String(!!ui.netz));
+  if (typeof renderQuick === 'function' && state) renderQuick();
   b.toggle('hide-chat', !!ui.hideChat); b.toggle('hide-input', !!ui.hideInput); b.toggle('side-off', !ui.side);
   $('chatToggle').setAttribute('aria-pressed', String(!ui.hideChat));
   $('inputToggle').setAttribute('aria-pressed', String(!ui.hideInput));
@@ -76,6 +77,24 @@ function applyUi() {
   if (ui.netz) { renderNetz(); window.Netz?.show(); }
 }
 function setUi(patch) { ui = { ...ui, ...patch }; applyUi(); }
+// ---------- Schnellstart-Leiste: aktive Pakete als Knöpfe über dem Eingabefeld ----------
+function renderQuick() {
+  const el = $('quick'); if (!el) return;
+  const list = ui.quick ? activePacks() : [];
+  el.classList.toggle('hidden', !list.length);
+  const tg = $('quickToggle'); if (tg) tg.checked = !!ui.quick;
+  const sig = list.map((p) => `${p.id}|${p.name}|${p.symbol}`).join(',');
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  el.innerHTML = list.map((p) => `<button data-cmd="${escapeHtml(p.befehl)}" title="${escapeHtml(p.beschreibung || p.befehl)}"><span>${escapeHtml(p.symbol || '◇')}</span>${escapeHtml(p.name)}</button>`).join('');
+}
+$('quick').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-cmd]'); if (!b) return;
+  if (ui.hideInput) setUi({ hideInput: false });
+  els.input.value = `${b.dataset.cmd} `; els.input.focus(); updateSuggest();
+});
+$('quickToggle').addEventListener('change', (e) => setUi({ quick: e.target.checked }));
+
 let liveActive = false; let liveTimer = 0;
 function setLive(text, kind = '', isHint = false) {
   const el = els.live; if (!el) return;
@@ -393,7 +412,7 @@ async function sendMessage(text) {
       if (state.settings.speak) speaker.finish();
     } else if (chat.id !== activeId) { chat.unread = true; toast(`Antwort fertig: ${chat.title}`); }
     if (res.memorySaved?.length || res.memoryForgotten?.length) { state = await jarvis.getState(); updateReadouts(); }
-    if (res.firstMs != null) { els.roSpeed.textContent = `${(res.firstMs / 1000).toFixed(2)} s`; window.Netz?.setSpeed(els.roSpeed.textContent); }
+    if (res.firstMs != null) { els.roSpeed.textContent = `${(res.firstMs / 1000).toFixed(2)} s`; window.Netz?.setSpeed(els.roSpeed.textContent); window.pushTempo?.(res.firstMs); }
     window.Netz?.log(`Antwort von ${String(res.by || 'KI').split(' (')[0]}${res.firstMs != null ? ` in ${(res.firstMs / 1000).toFixed(2)} s` : ''}`);
   } catch (err) {
     const partial = run.text;
@@ -701,9 +720,10 @@ function renderPacks() {
       : `<div class="prov-top"><span class="pack-sym">${escapeHtml(p.symbol || '◇')}</span>
           <div class="prov-name"><b>${escapeHtml(p.name)}</b> <code>${escapeHtml(p.befehl)}</code><small>${escapeHtml(p.beschreibung)}</small></div>
           <label class="switch" title="An/aus"><input type="checkbox" ${p.enabled ? 'checked' : ''}><span></span></label></div>
-         <div class="row end">${p.builtin ? '<span class="badge">Eingebaut</span><button class="link" data-act="copy">Als Vorlage kopieren</button>'
-          : '<button class="link" data-act="edit">Bearbeiten</button><button class="danger" data-act="del">Löschen</button>'}
-          <button class="link" data-act="pdf">Als PDF</button>
+         <div class="row end">${p.locked ? '<span class="badge">Geschützt</span><button class="danger" data-act="del">Löschen</button>'
+          : p.builtin ? '<span class="badge">Eingebaut</span><button class="link" data-act="copy">Als Vorlage kopieren</button>'
+          : '<button class="link" data-act="edit">Bearbeiten</button><button class="link" data-act="export">Geschützt exportieren</button><button class="danger" data-act="del">Löschen</button>'}
+          ${p.locked ? '' : '<button class="link" data-act="pdf">Als PDF</button>'}
           <button class="ghost small" data-act="use">Benutzen</button></div>`;
     card.querySelector('input[type=checkbox]')?.addEventListener('change', async (e) => { state = await jarvis.togglePack(p.id, e.target.checked); renderAll(); });
     card.addEventListener('click', async (e) => {
@@ -711,6 +731,7 @@ function renderPacks() {
       if (act === 'use') { closeSettings(); els.input.value = `${p.befehl} `; els.input.focus(); }
       if (act === 'edit') openEditor(p, false);
       if (act === 'copy') openEditor(p, true);
+      if (act === 'export') { try { const r = await jarvis.exportPack(p.id); if (r.saved) toast('Geschütztes Paket gespeichert ✓'); } catch (err) { toast(err.message, 5000); } }
       if (act === 'pdf') { try { const r = await jarvis.packPdf(p.id); if (r.saved) toast('PDF gespeichert ✓'); } catch (err) { toast(err.message, 5000); } }
       if (act === 'del' && confirm(`Paket „${p.name}“ wirklich löschen?`)) { state = await jarvis.deletePack(p.id); renderAll(); }
     });
@@ -728,6 +749,8 @@ function openEditor(p = null, asCopy = false) {
   $('packEditor').classList.remove('hidden');
   $('peName').focus();
 }
+
+$('newsToggle').addEventListener('change', async (e) => { state = await jarvis.setNews(e.target.checked); window.refreshNews?.(); });
 $('newPack').onclick = () => openEditor();
 $('peCancel').onclick = () => $('packEditor').classList.add('hidden');
 $('peName').addEventListener('input', () => {
@@ -968,6 +991,7 @@ $('fontRange').onchange = async (e) => {
   renderAll();
 };
 function renderWeather() {
+  if ($('newsToggle')) $('newsToggle').checked = state.news?.enabled !== false;
   const w = state.weather || {};
   if (document.activeElement !== $('wxCity')) $('wxCity').value = w.city || '';
   $('wxStatus').textContent = w.set ? `Aktuell: ${w.name}. Nur der Ortsname geht an open-meteo.com.` : 'Kein Ort eingestellt. Nur der Ortsname geht an open-meteo.com.';
@@ -991,13 +1015,13 @@ function beep() {
     o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.25); o.onended = () => ctx.close();
   } catch { /* egal */ }
 }
-const WAKE_TEXT = { off: ['aus', 'Weckwort aus.', ''], starting: ['startet …', 'Weckwort startet …', ''], ready: ['bereit', '', 'ok'], error: ['Fehler', '', 'err'], unsupported: ['–', '', 'err'] };
+const WAKE_TEXT = { off: ['aus', 'Weckwort aus.', ''], starting: ['startet …', 'Weckwort startet …', ''], ready: ['bereit', '', 'ok'], error: ['Fehler', '', 'err'], unsupported: ['–', '', 'err'], retry: ['neuer Versuch', '', 'err'] };
 function showWake(w) {
   const [ro, txt, cls] = WAKE_TEXT[w.state] || WAKE_TEXT.off;
   els.roWake.textContent = w.state === 'ready' ? 'hört zu' : ro;
   els.wakeStatus.className = `wake-status ${cls}`; els.wakeStatus.style.whiteSpace = 'pre-line'; if (w.state !== 'ready') delete els.wakeStatus.dataset.heard;
   els.wakeStatus.textContent = w.state === 'ready' ? `Bereit – sag „Hey Jarvis“, warte auf den Piep, dann sprich. (Erkennung: ${w.detail})`
-    : w.state === 'error' || w.state === 'unsupported' ? w.detail : txt;
+    : w.state === 'error' || w.state === 'unsupported' || w.state === 'retry' ? w.detail : txt;
 }
 function showHeard() {
   const h = els.wakeStatus.dataset.heard; if (!h || !/^Bereit/.test(els.wakeStatus.textContent.split('\n')[0])) return;
@@ -1022,6 +1046,7 @@ function renderAll() {
   renderProviders();
   renderPacks();
   renderSidePacks();
+  renderQuick();
   renderMemory();
   renderRemote();
   renderMail();
@@ -1123,7 +1148,15 @@ speechSynthesis.onvoiceschanged = () => {};
   chats.unshift(fresh);
   activeId = fresh.id;
   if (window.innerWidth < 860) ui.side = false;
-  window.Netz?.init({ onCommand: (cmd) => { if (ui.hideInput) setUi({ hideInput: false }); els.input.value = `${cmd} `; els.input.focus(); updateSuggest(); } });
+  window.Netz?.init({
+    onCommand: (cmd) => { if (ui.hideInput) setUi({ hideInput: false }); els.input.value = `${cmd} `; els.input.focus(); updateSuggest(); },
+    // Pakete direkt im Netz bearbeiten: Editor in den Einstellungen öffnen, An/Aus schalten, neues Paket anlegen
+    onPackAction: async (act, n) => {
+      if (act === 'toggle') { state = await jarvis.togglePack(n.pid, n.on === false); renderAll(); window.Netz.log(`Paket ${n.cmd} ${n.on === false ? 'eingeschaltet' : 'ausgeschaltet'}`); return; }
+      if (act === 'edit') { const p = (state.packs || []).find((x) => x.id === n.pid); if (!p || p.locked) return; openSettings('pakete'); openEditor(p, false); return; }
+      if (act === 'new') { openSettings('pakete'); openEditor(); }
+    },
+  });
   applyUi();
   renderAll();
   renderChatList();

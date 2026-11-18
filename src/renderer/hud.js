@@ -80,8 +80,8 @@
     const img = new Image(); img.onload = () => { try { buildTexture(img); } catch (e) { console.warn('Erde', e); } }; img.src = window.EARTH_MAP;
   })();
 
-  // Geometrie pro Größe einmal vorberechnen (nur die Drehung ändert sich pro Bild)
-  let geo = null;
+  // Pro Größe ein eigener Zwischenspeicher (Geometrie + Bild), damit mehrere Erden gleichzeitig nicht ständig neu rechnen
+  const earthCache = new Map();
   function buildGeo(S, tilt) {
     const n = S * S; const g = { S, tilt, inside: new Uint8Array(n), lon: new Float32Array(n), ty: new Uint16Array(n), cy: new Uint16Array(n), lit: new Float32Array(n), spec: new Float32Array(n), rim: new Float32Array(n) };
     const ct = Math.cos(tilt); const st = Math.sin(tilt); const L = [-0.55, -0.4, 0.73]; const ln = Math.hypot(...L); const Lx = L[0] / ln; const Ly = L[1] / ln; const Lz = L[2] / ln;
@@ -105,13 +105,16 @@
     }
     return g;
   }
-  const earthCv = document.createElement('canvas'); let earthCtx = null; let earthImg = null;
   // spin = Drehwinkel, tilt = Achsneigung, tint = HUD-Farbe (leichte Tönung), t = Zeit für die Wolken
   function earthImage(S, spin, tilt, tint, t) {
-    if (!geo || geo.S !== S || geo.tilt !== tilt) geo = buildGeo(S, tilt);
-    if (earthCv.width !== S) { earthCv.width = S; earthCv.height = S; earthCtx = earthCv.getContext('2d'); earthImg = null; }
-    if (!earthImg) earthImg = earthCtx.createImageData(S, S);
-    const D = earthImg.data; const g = geo; const n = S * S; const TWO = Math.PI * 2;
+    S = Math.max(32, Math.round(S));
+    const key = `${S}|${tilt}`; let e = earthCache.get(key);
+    if (!e) {
+      if (earthCache.size >= 6) earthCache.delete(earthCache.keys().next().value);
+      const cv = document.createElement('canvas'); cv.width = S; cv.height = S; const cx = cv.getContext('2d');
+      e = { cv, cx, img: cx.createImageData(S, S), geo: buildGeo(S, tilt) }; earthCache.set(key, e);
+    }
+    const D = e.img.data; const g = e.geo; const n = S * S; const TWO = Math.PI * 2;
     const cloudShift = t * 0.012; // Wolken ziehen etwas schneller als die Erde
     for (let k = 0; k < n; k++) {
       const o = k * 4; const ins = g.inside[k];
@@ -124,11 +127,11 @@
       const cl = clouds ? clouds[g.cy[k] * CW + Math.min(CW - 1, Math.floor(cu * CW))] / 255 * 0.85 : 0;
       R_ += (245 - R_) * cl; G_ += (248 - G_) * cl; B_ += (252 - B_) * cl;
       const lit = g.lit[k]; const sp = water * (1 - cl) * g.spec[k] * 255; const rim = g.rim[k];
-      let r = R_ * lit + sp + (tint[0] * 0.55 + 60) * rim; let gg = G_ * lit + sp + (tint[1] * 0.55 + 90) * rim; let b = B_ * lit + sp + (tint[2] * 0.6 + 120) * rim;
+      const r = R_ * lit + sp + (tint[0] * 0.55 + 60) * rim; const gg = G_ * lit + sp + (tint[1] * 0.55 + 90) * rim; const b = B_ * lit + sp + (tint[2] * 0.6 + 120) * rim;
       D[o] = r > 255 ? 255 : r; D[o + 1] = gg > 255 ? 255 : gg; D[o + 2] = b > 255 ? 255 : b; D[o + 3] = ins === 2 ? 170 : 255;
     }
-    earthCtx.putImageData(earthImg, 0, 0);
-    return earthCv;
+    e.cx.putImageData(e.img, 0, 0);
+    return e.cv;
   }
 
   function create(canvas) {
@@ -350,5 +353,5 @@
       bump(v = 0.6) { targetLevel = Math.max(targetLevel, v); },
     };
   }
-  window.HUD = { create };
+  window.HUD = { create, earth: earthImage };
 })();

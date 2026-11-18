@@ -52,6 +52,7 @@
         <div class="gauge"><dt>KIs aktiv</dt><dd id="roCount">00</dd></div>
       </dl>
       <div class="wx" id="wx" title="Wetter – Klick öffnet die Einstellungen"></div>
+      <div class="kurven" id="kurven" title="Kurven: Antwortzeit der KI, CPU und Arbeitsspeicher"><canvas id="kvCv"></canvas></div>
     </div>
     <div class="core-wrap">
       <canvas id="core"></canvas>
@@ -61,6 +62,7 @@
       <dl class="gauges right">
         <div class="gauge"><dt>Systemzeit</dt><dd id="roClock">--:--:--</dd></div>
       </dl>
+      <div class="news hidden" id="news" aria-label="Schlagzeilen"></div>
     </div>
   </section>
   <p class="status" id="status"><span class="dot"></span><span id="statusText">BEREIT</span></p>
@@ -99,6 +101,7 @@
     <div id="messages"></div>
   </main>
 
+  <nav class="quick hidden" id="quick" aria-label="Schnellstart für Pakete"></nav>
   <footer class="composer">
     <div class="suggest hidden" id="suggest"></div>
     <button class="mic" id="mic" title="Klicken oder gedrückt halten zum Sprechen (Leertaste geht auch)">
@@ -165,6 +168,10 @@
             <button class="primary" id="newPack">+ Eigenes Paket</button>
             <button class="ghost" id="importPack">Datei hinzufügen</button>
             <button class="link" id="packFolder">Ordner öffnen</button>
+          </div>
+          <div class="setting">
+            <div><b>Schnellstart-Leiste</b><small>Zeigt deine Pakete als Knöpfe über dem Eingabefeld. Ein Klick schreibt den Befehl ins Eingabefeld.</small></div>
+            <label class="switch"><input type="checkbox" id="quickToggle"><span></span></label>
           </div>
           <div id="packEditor" class="pack-editor hidden">
             <div class="row"><input type="text" id="peName" placeholder="Name, z. B. Fitness" maxlength="60"><input type="text" id="peCmd" placeholder="/befehl" maxlength="31"></div>
@@ -240,6 +247,10 @@
           <div class="setting">
             <div><b>Ort für das Wetter-Widget</b><small id="wxStatus">Kein Ort eingestellt. Nur der Ortsname geht an open-meteo.com.</small></div>
             <div class="row"><input type="text" id="wxCity" placeholder="z. B. Hamburg" maxlength="80"><button class="ghost small" id="wxSave">Speichern</button></div>
+          </div>
+          <div class="setting">
+            <div><b>Schlagzeilen anzeigen</b><small>Zeigt die aktuellen Meldungen von tagesschau.de auf dem Hauptbildschirm (kostenloser öffentlicher Feed, alle 20 Minuten). Aus: Jarvis ruft nichts ab.</small></div>
+            <label class="switch"><input type="checkbox" id="newsToggle"><span></span></label>
           </div>
           <h3>Darstellung</h3>
           <div class="setting">

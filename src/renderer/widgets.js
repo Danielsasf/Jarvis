@@ -37,6 +37,8 @@
   const $ = (id) => document.getElementById(id);
   const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const stats = { cpu: 0, ram: 0 };
+  const hist = { cpu: [], ram: [], tempo: [] };
+  try { hist.tempo = (JSON.parse(localStorage.getItem('jarvis.tempo') || '[]') || []).filter(Number.isFinite).slice(-20); } catch { /* egal */ }
 
   function drawClock() {
     const d = new Date(); const p = (n) => String(n).padStart(2, '0');
@@ -48,8 +50,49 @@
     const r = $('ringRam'); if (r) gauge(r, { value: stats.ram / 100, big: `${Math.round(stats.ram)}%`, small: 'RAM', color: stats.ram > 90 ? [255, 120, 90] : CYAN });
   }
   async function pollStats() {
-    try { const s = await window.jarvis.getStats(); if (s) { stats.cpu = s.cpu; stats.ram = s.ram; drawStats(); } } catch { /* egal */ }
+    try { const s = await window.jarvis.getStats(); if (s) { stats.cpu = s.cpu; stats.ram = s.ram; hist.cpu.push(s.cpu); hist.ram.push(s.ram); if (hist.cpu.length > 60) { hist.cpu.shift(); hist.ram.shift(); } drawStats(); drawKurven(); } } catch { /* egal */ }
   }
+
+  // Kurven: letzte Antwortzeiten der KI, CPU- und RAM-Verlauf (leuchtende Linien mit Fläche)
+  function spark(ctx, x, y, w, h, vals, max, color, label, last) {
+    ctx.fillStyle = rgba(color, 0.9); ctx.font = '10px "Cascadia Mono", Consolas, monospace'; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillText(label, x, y);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#e6fbff'; ctx.fillText(last, x + w, y);
+    const top = y + 14; const hh = h - 14;
+    ctx.strokeStyle = rgba(color, 0.18); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, top + hh - 0.5); ctx.lineTo(x + w, top + hh - 0.5); ctx.stroke();
+    if (vals.length < 2) { ctx.fillStyle = rgba(color, 0.5); ctx.textAlign = 'left'; ctx.fillText(vals.length ? '·' : 'noch keine Werte', x, top + hh / 2 - 5); return; }
+    const pts = vals.map((v, i) => [x + (i / (vals.length - 1)) * w, top + hh - Math.min(1, v / max) * (hh - 2) - 1]);
+    const fillG = ctx.createLinearGradient(0, top, 0, top + hh); fillG.addColorStop(0, rgba(color, 0.32)); fillG.addColorStop(1, rgba(color, 0));
+    ctx.beginPath(); ctx.moveTo(pts[0][0], top + hh); pts.forEach((p) => ctx.lineTo(p[0], p[1])); ctx.lineTo(pts[pts.length - 1][0], top + hh); ctx.closePath(); ctx.fillStyle = fillG; ctx.fill();
+    ctx.save(); ctx.shadowColor = rgba(color, 0.9); ctx.shadowBlur = 6; ctx.strokeStyle = rgba(color, 1); ctx.lineWidth = 1.5; ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke(); ctx.restore();
+    const e = pts[pts.length - 1]; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(e[0], e[1], 2.2, 0, TAU); ctx.fill();
+  }
+  function drawKurven() {
+    const cv = $('kvCv'); if (!cv || !cv.clientWidth) return;
+    const { ctx, w, h } = setup(cv); const rowH = Math.floor(h / 3);
+    const t = hist.tempo; const lastT = t.length ? `${(t[t.length - 1] / 1000).toFixed(2).replace('.', ',')} s` : '–';
+    const tMax = Math.max(3000, ...t);
+    spark(ctx, 2, 0, w - 4, rowH - 4, t, tMax, [255, 206, 96], 'ANTWORTZEIT', lastT);
+    spark(ctx, 2, rowH, w - 4, rowH - 4, hist.cpu, 100, CYAN, 'CPU', hist.cpu.length ? `${Math.round(hist.cpu[hist.cpu.length - 1])}%` : '–');
+    spark(ctx, 2, rowH * 2, w - 4, rowH - 4, hist.ram, 100, [96, 240, 200], 'RAM', hist.ram.length ? `${Math.round(hist.ram[hist.ram.length - 1])}%` : '–');
+  }
+  window.pushTempo = (ms) => {
+    if (!Number.isFinite(ms)) return;
+    hist.tempo.push(ms); if (hist.tempo.length > 20) hist.tempo.shift();
+    try { localStorage.setItem('jarvis.tempo', JSON.stringify(hist.tempo)); } catch { /* egal */ }
+    drawKurven();
+  };
+
+  // Schlagzeilen (öffentlicher Feed, nur wenn eingeschaltet)
+  async function drawNews() {
+    const el = $('news'); if (!el) return;
+    let n; try { n = await window.jarvis.getNews(); } catch { n = { enabled: true, error: 'Nicht erreichbar' }; }
+    if (!n || n.enabled === false) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.classList.remove('hidden');
+    if (n.error) { el.innerHTML = `<h4>Schlagzeilen</h4><p class="news-err">${esc(n.error)}</p>`; return; }
+    el.innerHTML = `<h4>Schlagzeilen<small>${esc(n.source)}${n.stale ? ' · alt' : ''}</small></h4><ul>${(n.items || []).slice(0, 4).map((i) => `<li><button data-url="${esc(i.link)}" title="Im Browser öffnen">${esc(i.title)}</button></li>`).join('')}</ul>`;
+  }
+  window.refreshNews = drawNews;
+  document.addEventListener('click', (e) => { const b = e.target.closest?.('#news button[data-url]'); if (b) window.jarvis.openExternal(b.dataset.url); });
   const WX_ICON = {
     sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>',
     cloud: '<path d="M7 18.5h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 9.4 4.6 4.6 0 0 0 7 18.5z"/>',
@@ -118,6 +161,7 @@
     dayStrip(); drawClock(); drawStats(); fx();
     setInterval(drawClock, 1000); setInterval(pollStats, 2500); setInterval(dayStrip, 3600000); pollStats();
     drawWeather(); setInterval(drawWeather, 20 * 60 * 1000);
+    drawKurven(); drawNews(); setInterval(drawNews, 20 * 60 * 1000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
