@@ -1,4 +1,4 @@
 {
-  "version": "2.22.1",
-  "notes": "Jarvis prüft jetzt alle 15 Minuten auf Updates, ohne Neustart. Der Update-Hinweis erscheint dann von selbst."
+  "version": "2.23.0",
+  "notes": "Look: Zahlen am Kern entfernt (Gradzahlen, Messwerte, Hex-Ring). Kern größer und plastischer: Randlicht, Glanzpunkt, kräftigeres Gitter."
 }

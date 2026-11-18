@@ -39,6 +39,7 @@ Die App liest `release/version.json` und `release/jarvis-app.json` aus dem Zweig
 E-Mail-Antwortentwurf (nie automatisch senden), Chat-Export, Kalender-Autonomie nur mit Erlaubnis, echte Anrufe (kosten Geld → zurückgestellt), Feedback des Nutzers zum Look (v2.11.0).
 
 ## Änderungsprotokoll
+- 2.23.0 (Claude): Kern ohne Zahlen (Gradzahlen, Readouts, Hex-Ring entfernt), Kugel größer mit Randlicht + Glanzpunkt (hud.js).
 - 2.22.1 (Claude): Update-Prüfung alle 15 Min (main.js), vorher nur beim Start.
 - 2.22.0 (Claude): Kern präziser (hud.js: 360er-Skala, Datenring, Zielklammern, Readouts), Panels mit Eck-Klammern/Scanlinie (style.css Ende), Update-Banner jetzt position:fixed oben (war im Fokus-Layout unten verdeckt).
 - 2.21.0 (Claude): Netz-Ansicht: Hauptpunkt als 3D-Kern (hub3d in netz.js).

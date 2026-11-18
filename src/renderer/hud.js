@@ -75,12 +75,6 @@
         }
         // Zeiger: aktuelle Drehung als heller Strich auf der Skala
         { const pa = (t * 22 % 360) / 360 * TAU - Math.PI / 2; tick(x, y, pa, R * 0.885, R * 0.985, 2, 1); }
-        ctx.font = `${Math.max(8, R * 0.04)}px "Cascadia Mono", Consolas, monospace`;
-        ctx.fillStyle = c(0.7); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        for (let d = 0; d < 360; d += 30) {
-          const a = (d / 360) * TAU - Math.PI / 2;
-          ctx.fillText(String(d).padStart(3, '0'), x + Math.cos(a) * R * 0.86, y + Math.sin(a) * R * 0.86);
-        }
         ring(x, y, R * 0.985, 1, 0.35);
       }
       // 2) Rotierender Messring mit Lücken und Markierungen
@@ -153,7 +147,7 @@
       }
       // 6) 3D-Kern: leuchtende Kugel mit Gitter (dreht), Kristall innen (dreht gegenläufig), Bahnen drumherum (kippen und drehen)
       const pulse = 1 + level * 0.28 + Math.sin(now / 1000) * 0.015;
-      const cr = R * (small ? 0.46 : 0.34) * pulse;
+      const cr = R * (small ? 0.5 : 0.4) * pulse;
       const rot = (px, py, pz, ay, ax) => { // erst um Y, dann um X drehen
         const cy = Math.cos(ay); const sy = Math.sin(ay); let X = px * cy + pz * sy; let Z = -px * sy + pz * cy;
         const cx = Math.cos(ax); const sx = Math.sin(ax); const Y = py * cx - Z * sx; Z = py * sx + Z * cx; return [X, Y, Z];
@@ -200,6 +194,15 @@
           const pt = P(v, cr); if (prev) seg3(prev, pt, 0.9, 0.85, '4,28,44'); prev = pt;
         }
       }
+      // Randlicht (Atmosphäre) und Glanzpunkt für mehr Tiefe
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const rim = ctx.createRadialGradient(x, y, cr * 0.72, x, y, cr * 1.04);
+      rim.addColorStop(0, c(0)); rim.addColorStop(0.85, c(0.55)); rim.addColorStop(1, c(0));
+      ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(x, y, cr * 1.04, 0, TAU); ctx.fill();
+      const sp = ctx.createRadialGradient(x - cr * 0.38, y - cr * 0.42, 0, x - cr * 0.38, y - cr * 0.42, cr * 0.34);
+      sp.addColorStop(0, 'rgba(255,255,255,.5)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sp; ctx.beginPath(); ctx.arc(x - cr * 0.38, y - cr * 0.42, cr * 0.34, 0, TAU); ctx.fill();
+      ctx.restore();
       // Kristall im Inneren (Ikosaeder), dreht gegenläufig auf zwei Achsen
       const ph = (1 + Math.sqrt(5)) / 2; const nl = Math.hypot(1, ph);
       const V = [[-1, ph, 0], [1, ph, 0], [-1, -ph, 0], [1, -ph, 0], [0, -1, ph], [0, 1, ph], [0, -1, -ph], [0, 1, -ph], [ph, 0, -1], [ph, 0, 1], [-ph, 0, -1], [-ph, 0, 1]].map((v) => [v[0] / nl, v[1] / nl, v[2] / nl]);
@@ -212,27 +215,16 @@
       drawOrbits(true);
       if (!small) {
         ctx.save(); ctx.translate(x, y); ctx.rotate(-t * 0.5);
-        for (let i = 0; i < 24; i++) { const a = (i / 24) * TAU; tick(0, 0, a, cr * 2.55, cr * 2.55 + (i % 2 ? 5 : 10), 1.4, 0.9); }
+        for (let i = 0; i < 24; i++) { const a = (i / 24) * TAU; tick(0, 0, a, cr * 2.0, cr * 2.0 + (i % 2 ? 4 : 9), 1.3, 0.9); }
         ctx.restore();
       }
       if (!small) {
-        // Datenring: wechselnde Hex-Zeichen laufen um den Kern
-        if (now - (frame.dataT || 0) > 260) { frame.dataT = now; frame.data = Array.from({ length: 40 }, () => '0123456789ABCDEF'[(Math.random() * 16) | 0]); }
-        ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.18); ctx.font = `${Math.max(7, R * 0.032)}px "Cascadia Mono", Consolas, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        (frame.data || []).forEach((ch, i) => { const a = (i / 40) * TAU; ctx.save(); ctx.rotate(a); ctx.translate(0, -R * 0.615); ctx.fillStyle = c(0.35 + 0.45 * ((i + Math.floor(t * 3)) % 5 === 0)); ctx.fillText(ch, 0, 0); ctx.restore(); });
-        ctx.restore();
         // Zielklammern um die Kugel
         const bk = cr * 1.32; const bl = cr * 0.28;
         for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
           ctx.beginPath(); ctx.moveTo(x + sx * bk, y + sy * (bk - bl)); ctx.lineTo(x + sx * bk, y + sy * bk); ctx.lineTo(x + sx * (bk - bl), y + sy * bk);
           ctx.lineWidth = 1.5; ctx.strokeStyle = c(0.95); ctx.stroke();
         }
-        // Messwerte in den Ecken
-        ctx.font = `${Math.max(8, R * 0.036)}px "Cascadia Mono", Consolas, monospace`; ctx.fillStyle = c(0.85); ctx.textBaseline = 'top';
-        ctx.textAlign = 'left'; ctx.fillText(`ROT ${(t * 22 % 360).toFixed(1).padStart(5, '0')}°`, x - R * 0.97, y - R * 0.97);
-        ctx.textAlign = 'right'; ctx.fillText(`LVL ${level.toFixed(2)}`, x + R * 0.97, y - R * 0.97);
-        ctx.textBaseline = 'bottom'; ctx.textAlign = 'left'; ctx.fillText(mode.toUpperCase(), x - R * 0.97, y + R * 0.97);
-        ctx.textAlign = 'right'; ctx.fillText(`T+${(t % 1000).toFixed(1)}`, x + R * 0.97, y + R * 0.97);
       }
       ring(x, y, cr + 3, 1, 0.9);
       ring(x, y, cr + 7, 1, 0.35);
