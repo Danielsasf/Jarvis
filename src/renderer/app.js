@@ -5,7 +5,7 @@ const els = {
   messages: $('messages'), chat: $('chat'), input: $('input'), send: $('send'), mic: $('mic'),
   speakToggle: $('speakToggle'), newChat: $('newChat'), settings: $('settings'), scrim: $('scrim'), providerList: $('providerList'),
   systemPrompt: $('systemPrompt'), log: $('log'), toast: $('toast'), roLink: $('roLink'), roSpeed: $('roSpeed'), roCount: $('roCount'),
-  roClock: $('roClock'), roMemory: $('roMemory'), suggest: $('suggest'), packList: $('packList'), memList: $('memList'), version: $('version'), updateBanner: $('updateBanner'), updateVersion: $('updateVersion'), updateInstall: $('updateInstall'),
+  roClock: $('roClock'), roMemory: $('roMemory'), suggest: $('suggest'), packList: $('packList'), memList: $('memList'), version: $('version'), updateBanner: $('updateBanner'), updateVersion: $('updateVersion'), updateInstall: $('updateInstall'), updateNotes: $('updateNotes'), updateNotesToggle: $('updateNotesToggle'),
   updateInfo: $('updateInfo'), checkUpdate: $('checkUpdate'), autoUpdate: $('autoUpdate'), roWake: $('roWake'), wakeStatus: $('wakeStatus'),
 };
 
@@ -945,11 +945,29 @@ function renderAll() {
 }
 
 // ---------- Updates ----------
+// „Was ist neu?“: Notizen stehen schon in der Update-Antwort (release/version.json bzw. GitHub-Release).
+// Erste drei Zeilen sind sichtbar, der Rest lässt sich aufklappen. Text wird escaped, nie als HTML übernommen.
+let updateNotesOpen = false;
+function showUpdateNotes(raw) {
+  const text = String(raw || '').replace(/\r\n?/g, '\n').trim();
+  const lines = text.split('\n').filter((l) => l.trim());
+  updateNotesOpen = false;
+  els.updateNotes.innerHTML = '';
+  els.updateNotes.classList.add('hidden');
+  els.updateNotes.classList.remove('open');
+  els.updateNotesToggle.classList.add('hidden');
+  els.updateNotesToggle.textContent = 'Was ist neu?';
+  if (!text) return;
+  els.updateNotes.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+  els.updateNotes.classList.remove('hidden');
+  if (lines.length > 3 || text.length > 200) els.updateNotesToggle.classList.remove('hidden');
+}
 function showUpdate(r) {
   if (r?.available) {
     els.updateVersion.textContent = r.version;
     els.updateBanner.classList.remove('hidden');
-    els.updateInfo.textContent = `Installiert: ${state.version} · Neu: ${r.version}`;
+    els.updateInfo.textContent = `Installiert: ${state?.version || ''} · Neu: ${r.version}`;
+    showUpdateNotes(r.notes);
   }
 }
 jarvis.onUpdate(showUpdate);
@@ -967,6 +985,11 @@ els.checkUpdate.onclick = async () => {
   els.checkUpdate.disabled = false;
 };
 els.autoUpdate.onchange = async () => { state = await jarvis.setSettings({ autoUpdate: els.autoUpdate.checked }); };
+els.updateNotesToggle.onclick = () => {
+  updateNotesOpen = !updateNotesOpen;
+  els.updateNotes.classList.toggle('open', updateNotesOpen);
+  els.updateNotesToggle.textContent = updateNotesOpen ? 'Weniger' : 'Was ist neu?';
+};
 
 // ---------- Ereignisse ----------
 els.send.onclick = () => (activeRun() ? jarvis.stop(activeRun().reqId) : sendMessage());
