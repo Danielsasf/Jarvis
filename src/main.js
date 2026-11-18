@@ -18,6 +18,7 @@ const historyLib = require('./history');
 const webLib = require('./websearch');
 const computerLib = require('./computer');
 const localParse = require('./localparse');
+const addressingLib = require('./addressing');
 const { spawn } = require('child_process');
 const { ChatStore } = require('./chats');
 const { RemoteServer, findTailscaleIp } = require('./remote');
@@ -178,6 +179,7 @@ function publicState() {
         id, type: acc.type, name: accountsLib.displayName(id, acc, t), desc: t.desc, local: !!t.local, custom: !!t.custom, base: acc.base || '',
         keyUrl: t.keyUrl, stt: !!t.stt, connected: true, enabled: acc.enabled !== false, model: acc.model || '', models: acc.models || [],
         ms: Number.isFinite(acc.ms) ? acc.ms : null,
+        alias: acc.alias || '',
         pause: healthLib.isPaused(acc) ? { until: acc.pausedUntil, text: healthLib.untilText(acc.pausedUntil), reason: healthLib.reasonText(acc.pauseKind) } : null,
       };
     }),
@@ -269,6 +271,7 @@ ipcMain.handle('provider:update', (_e, id, patch) => {
   if (typeof patch.model === 'string' && s.models.includes(patch.model)) s.model = patch.model;
   if (typeof patch.enabled === 'boolean') s.enabled = patch.enabled;
   if (typeof patch.label === 'string') s.label = patch.label.trim().slice(0, 40);
+  if (typeof patch.alias === 'string') s.alias = patch.alias.replace(/[^\p{L}\p{N} ,.-]/gu, '').slice(0, 120);
   if (patch.resetSpeed) delete s.ms;
   saveCfg();
   return publicState();
@@ -359,6 +362,14 @@ ipcMain.handle('local:detect', async () => {
 // onStatus(payload) / onDelta(text) melden den Fortschritt; abortSignal bricht ab.
 async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abortSignal = new AbortController().signal, canPropose = false } = {}) {
   const clean = historyLib.cleanHistory(messages).slice(-30);
+  // "Claude, erkläre das": nur diese KI fragen (Name am Anfang, mit Komma oder Doppelpunkt)
+  let direct = null;
+  const firstUser = clean[clean.length - 1];
+  if (firstUser?.role === 'user') {
+    const act = cfg.order.filter((id) => cfg.accounts[id] && cfg.accounts[id].enabled !== false);
+    const ad = addressingLib.parseAddress(firstUser.content, cfg.accounts, act);
+    if (ad) { direct = ad.id; firstUser.content = ad.rest; }
+  }
   // "/befehl …" ruft ein Paket auf
   let invoked = null;
   const last = clean[clean.length - 1];
@@ -438,7 +449,7 @@ async function runChat(messages, { onStatus = () => {}, onDelta = () => {}, abor
   let firstAt = null;
 
   const seq = cfg.settings.sequential !== false;
-  const arranged = healthLib.arrange(orderedChain(), cfg.accounts);
+  const arranged = direct ? { chain: [direct] } : healthLib.arrange(orderedChain(), cfg.accounts);
   const chain = arranged.chain.map((id) => {
     const p = P(id);
     const s = cfg.accounts[id];

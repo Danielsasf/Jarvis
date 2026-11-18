@@ -669,6 +669,11 @@ function renderProviders() {
         <div class="row end">${p.pause ? '<button class="ghost" data-act="unpause">Pause aufheben</button>' : ''}<button class="danger" data-act="disconnect">Trennen</button></div>
       </div>`;
     const body = card.querySelector('.prov-body');
+    const aliasIn = document.createElement('div');
+    aliasIn.className = 'row';
+    aliasIn.innerHTML = `<input type="text" maxlength="60" placeholder="Kurzname zum Ansprechen, z. B. Gem" value="${escapeHtml(p.alias || '')}" title="Mit „Kurzname, Frage“ fragst du nur diese KI. Mehrere mit Komma trennen.">`;
+    body.prepend(aliasIn);
+    aliasIn.querySelector('input').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { alias: e.target.value }); toast(`Ansprache: ${e.target.value || 'nur Name'}`); };
     body.querySelector('select').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { model: e.target.value }); updateReadouts(); toast(`${p.name}: ${e.target.value}`); };
     body.querySelector('input[type=checkbox]').onchange = async (e) => { state = await jarvis.updateProvider(p.id, { enabled: e.target.checked }); renderAll(); };
     card.addEventListener('click', async (e) => {

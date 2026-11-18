@@ -1,4 +1,4 @@
 {
-  "version": "3.4.0",
-  "notes": "Lokale Befehlserkennung: Ollama versteht Computer-Befehle kostenlos, Ausführen nur nach Klick, nur erlaubte Aktionen."
+  "version": "3.5.0",
+  "notes": "Direkte Ansprache: Claude, Gemini, ChatGPT usw. per Name am Satzanfang fragen. Kurznamen pro KI einstellbar."
 }
