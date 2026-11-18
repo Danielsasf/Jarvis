@@ -713,7 +713,7 @@ function createWindow() {
     // im Hintergrund: Modelllisten auffrischen und nach Updates schauen
     setTimeout(async () => {
       for (const id of activeChain()) if (!P(id).local) refreshModels(id).catch(() => {});
-      if (cfg.settings.autoUpdate) checkUpdate(false);
+      if (cfg.settings.autoUpdate) { checkUpdate(false); setInterval(() => { if (cfg.settings.autoUpdate) checkUpdate(false); }, 15 * 60 * 1000); }
       if (cfg.settings.wakeWord) wake.set(true, cfg.settings.wakeSens);
       remoteApply().catch(() => {});
       setTimeout(notifyTick, 20000); setInterval(notifyTick, 60000);

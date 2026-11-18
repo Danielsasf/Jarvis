@@ -1,4 +1,4 @@
 {
-  "version": "2.22.0",
-  "notes": "Look: Kern präziser (feine 360°-Skala mit Zeiger, 96 dünne Segmente, Datenring, Zielklammern, Messwerte in den Ecken, feineres Kugelgitter). Alle Panels mit leuchtenden Eck-Klammern, Scanlinie, pulsierenden Rändern. Update-Hinweis steht jetzt fest oben in der Mitte und ist immer klickbar."
+  "version": "2.22.1",
+  "notes": "Jarvis prüft jetzt alle 15 Minuten auf Updates, ohne Neustart. Der Update-Hinweis erscheint dann von selbst."
 }
